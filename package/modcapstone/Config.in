@@ -1,0 +1,7 @@
+config BR2_PACKAGE_MODCAPSTONE
+    bool "modcapstone"
+    help
+        Kernel module for Capstone.
+
+        https://capstone.kisp-lab.org/
+

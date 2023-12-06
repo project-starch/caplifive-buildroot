@@ -1,0 +1,27 @@
+SHELL := /bin/bash
+BUILDROOT_EXTERNAL = $(CURDIR)
+DEFCONFIG = $(CURDIR)/configs/qemu_capstone_defconfig
+CONFIG_PATH = $(CURDIR)/build
+CAPSTONE_S_OUTPUT = $(CURDIR)/components/opensbi/lib/sbi/sbi_capstone.S
+CAPSTONE_S_INPUT = $(CURDIR)/components/opensbi/lib/sbi/sbi_capstone.c
+CAPSTONE_S_INCLUDE = $(CURDIR)/components/opensbi/include
+
+.PHONY: all setup build
+
+all:
+
+setup:
+	git submodule update --init --recursive
+	mkdir -p overlay
+	LD_LIBRARY_PATH="" $(MAKE) -C buildroot defconfig BR2_EXTERNAL="$(BUILDROOT_EXTERNAL)" BR2_DEFCONFIG="$(DEFCONFIG)" O="$(CONFIG_PATH)"
+
+build: $(CAPSTONE_S_OUTPUT)
+	LD_LIBRARY_PATH="" $(MAKE) -C buildroot BR2_EXTERNAL="$(BUILDROOT_EXTERNAL)" O="$(CONFIG_PATH)" $(A)	
+
+$(CAPSTONE_S_OUTPUT): $(CAPSTONE_S_INPUT)
+	cd "$(CAPSTONE_CC_PATH)" && if ! /bin/sh -c 'cargo run -- --abi capstone $^ -- -I"$(CAPSTONE_S_INCLUDE)" -D__riscv_xlen=64 > "$@"'; then \
+		rm -f "$@"; \
+		echo "Compilation error. Make sure you supply the correct Capstone-C compiler directory path in CAPSTONE_CC_PATH" >&2; \
+		false; \
+	fi
+

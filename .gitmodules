@@ -1,0 +1,9 @@
+[submodule "components/linux"]
+	path = components/linux
+	url = https://github.com/project-starch/transcapstone-linux.git
+[submodule "buildroot"]
+	path = buildroot
+	url = https://github.com/buildroot/buildroot.git
+[submodule "components/opensbi"]
+	path = components/opensbi
+	url = https://github.com/project-starch/capstone-opensbi.git
