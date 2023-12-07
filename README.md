@@ -3,7 +3,8 @@
 This repo provides scripts and config files for building
 a Captainer system that can run on [Capstone-QEMU](https://github.com/project-starch/capstone-qemu).
 
-Also included is a Linux kernel module for Captainer.
+Also included is a Linux kernel module for Captainer, along with a
+corresponding test program.
 
 ### Dependencies
 
@@ -55,8 +56,12 @@ where `<path>` is the path to the local working directory of this repo.
 
 Log in using `root`.
 
+Both the kernel module and the test program are located at `/`.
 To install or uninstall the kernel module,
 
     modprobe capstone       # install
     modprobe -r capstone    # uninstall
 
+After the kernel module is installed, you can run the test program
+
+    /capstone-test

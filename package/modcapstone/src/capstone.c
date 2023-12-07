@@ -59,9 +59,13 @@ static long device_ioctl(struct file* file,
 					     unsigned int ioctl_num,
 						 unsigned long ioctl_param)
 {
+	struct sbiret sbi_res;
 	switch (ioctl_num) {
 		case IOCTL_HELLO:
 			printk(KERN_INFO "Hello!\n");
+			sbi_res = sbi_ecall(SBI_EXT_CAPSTONE, 0, 0, 0, 0, 0, 0, 0);
+			printk(KERN_INFO "From C mode: %ld\n", sbi_res.value);
+
 			break;
 		default:
 			pr_info("Unrecognised IOCTL command\n");
@@ -109,4 +113,4 @@ module_init(capstone_init);
 module_exit(capstone_exit);
 
 MODULE_LICENSE("GPL");
-
+MODULE_DESCRIPTION("Captainer kernel module");
