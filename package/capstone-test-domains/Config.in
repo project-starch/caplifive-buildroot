@@ -1,0 +1,7 @@
+config BR2_PACKAGE_CAPSTONE_TEST_DOMAINS
+    bool "capstone-test-domains"
+    help
+        Test domains for Capstone.
+
+        https://capstone.kisp-lab.org/
+
