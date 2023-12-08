@@ -3,7 +3,7 @@
 all: capstone-test
 
 capstone-test: capstone-test.o
-	$(CC) -o $@ $^
+	$(CC) -lelf -o $@ $^
 
 capstone-test.o: capstone-test.c
 	$(CC) -c -o $@ $^

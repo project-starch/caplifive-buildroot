@@ -10,7 +10,7 @@ endef
 
 define MODCAPSTONE_INSTALL_TARGET_CMDS
 	$(INSTALL) -D -m 0755 '$(@D)/module/capstone.ko' '$(TARGET_DIR)/capstone.ko'
-	$(INSTALL) -D -m 0755 '$(@D)/userspace/capstone-test' '$(TARGET_DIR)/userspace/capstone-test'
+	$(INSTALL) -D -m 0755 '$(@D)/userspace/capstone-test' '$(TARGET_DIR)/capstone-test'
 endef
 
 $(eval $(kernel-module))
