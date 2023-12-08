@@ -1,3 +1,2 @@
 source "$BR2_EXTERNAL_CAPSTONE_PATH/package/modcapstone/Config.in"
-source "$BR2_EXTERNAL_CAPSTONE_PATH/package/capstone-test/Config.in"
 

@@ -1,4 +1,5 @@
 #ifndef __CAPSTONE_H_
+#define __CAPSTONE_H_
 
 #define CAPSTONE_DEV_PATH "/dev/capstone"
 

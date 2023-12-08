@@ -11,6 +11,7 @@
 #include <linux/version.h>
 #include <asm/sbi.h>
 #include <asm/errno.h>
+#include "../include/capstone.h"
 
 #define SBI_EXT_CAPSTONE 0x12345678
 
@@ -19,11 +20,6 @@
 #define DEVICE_FILE_NAME "capstone"
 
 #define SUCCESS 0
-
-// ioctl code
-#define IOC_MAGIC '\xb8'
-
-#define IOCTL_HELLO			_IO(IOC_MAGIC, 0)
 
 static int device_open(struct inode *inode, struct file *file) {
 	try_module_get(THIS_MODULE);

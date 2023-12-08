@@ -1,6 +1,0 @@
-config BR2_PACKAGE_CAPSTONE_TEST
-    bool "capstonetest"
-    help
-        Test program for Capstone.
-
-        https://capstone.kisp-lab.org/

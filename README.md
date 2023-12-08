@@ -32,6 +32,10 @@ Similarly, to sync changes to the Linux kernel and rebuild, use
 
     make build CAPSTONE_CC_PATH=<path-to-capstone-c-compiler-directory> A=linux-rebuild
 
+For the kernel module or the test program,
+
+    make build CAPSTONE_CC_PATH=<path-to-capstone-c-compiler-directory> A=modcapstone-rebuild
+
 You can place the files you want to include in the rootfs in
 `./overlay`.
 
