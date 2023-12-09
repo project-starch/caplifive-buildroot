@@ -6,6 +6,14 @@
 // ioctl code
 #define IOC_MAGIC '\xb8'
 
-#define IOCTL_HELLO			_IO(IOC_MAGIC, 0)
+struct ioctl_dom_create_args {
+    // virtual region containing code
+    void *code_begin;
+    size_t code_len;
+    size_t entry_offset;
+    // TODO: pass info about the required data region size
+};
+
+#define IOCTL_DOM_CREATE			_IOR(IOC_MAGIC, 0, struct ioctl_dom_create_args)
 
 #endif

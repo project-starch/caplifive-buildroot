@@ -17,6 +17,10 @@ setup:
 
 build: $(CAPSTONE_S_OUTPUT)
 	LD_LIBRARY_PATH="" $(MAKE) -C buildroot BR2_EXTERNAL="$(BUILDROOT_EXTERNAL)" O="$(CONFIG_PATH)" $(A)
+	if [ -n "$(A)" ]; then \
+		LD_LIBRARY_PATH="" $(MAKE) -C buildroot BR2_EXTERNAL="$(BUILDROOT_EXTERNAL)" O="$(CONFIG_PATH)"; \
+	fi
+
 
 $(CAPSTONE_S_OUTPUT): $(CAPSTONE_S_INPUT)
 	cd "$(CAPSTONE_CC_PATH)" && if ! /bin/sh -c 'cargo run -- --abi capstone $^ -- -I"$(CAPSTONE_S_INCLUDE)" -D__riscv_xlen=64 > "$@"'; then \

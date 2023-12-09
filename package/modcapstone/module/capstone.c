@@ -50,6 +50,37 @@ static ssize_t device_write(struct file *file,
 	return 0;
 }
 
+static void create_dom(struct ioctl_dom_create_args* __user args) {
+	struct ioctl_dom_create_args m_args;
+	copy_from_user(&m_args, args, sizeof(struct ioctl_dom_create_args));
+
+	// allocate a contiguous memory region and copy code there
+	unsigned long code_pages = (m_args.code_len - 1) / PAGE_SIZE + 1;
+	unsigned long code_pages_log2 = code_pages == 1 ? 0 : (ilog2(code_pages - 1) + 1);
+	
+	unsigned long dom_code_vaddr = (unsigned long)__get_free_pages(GFP_HIGHUSER, code_pages_log2);
+	if (!dom_code_vaddr) {
+		pr_alert("Failed to allocate code region for domain.\n");
+		return;
+	}
+
+	unsigned long dom_code_paddr = __pa(dom_code_vaddr);
+	// TODO: do we still need to do this on page granularity?
+	pr_info("Domain code vaddr = %lx, paddr = %lx\n", dom_code_vaddr, dom_code_paddr);
+
+	// we just get one page for now
+	unsigned long dom_data_vaddr = (unsigned long)__get_free_pages(GFP_HIGHUSER, 0);
+	if (!dom_data_vaddr) {
+		pr_alert("Failed to allocate data region for domain.\n");
+		goto clean_up_code_region;
+	}
+	unsigned long dom_data_paddr = __pa(dom_data_vaddr);
+	pr_info("Domain data vaddr = %lx, paddr = %lx\n", dom_data_vaddr, dom_data_paddr);
+
+	return;
+clean_up_code_region:
+	free_pages(dom_code_vaddr, code_pages_log2);
+}
 
 static long device_ioctl(struct file* file,
 					     unsigned int ioctl_num,
@@ -57,14 +88,15 @@ static long device_ioctl(struct file* file,
 {
 	struct sbiret sbi_res;
 	switch (ioctl_num) {
-		case IOCTL_HELLO:
-			printk(KERN_INFO "Hello!\n");
-			sbi_res = sbi_ecall(SBI_EXT_CAPSTONE, 0, 0, 0, 0, 0, 0, 0);
-			printk(KERN_INFO "From C mode: %ld\n", sbi_res.value);
+		case IOCTL_DOM_CREATE:
+			// printk(KERN_INFO "Hello!\n");
+			// sbi_res = sbi_ecall(SBI_EXT_CAPSTONE, 0, 0, 0, 0, 0, 0, 0);
+			// printk(KERN_INFO "From C mode: %ld\n", sbi_res.value);
+			create_dom((struct ioctl_dom_create_args* __user)ioctl_param);
 
 			break;
 		default:
-			pr_info("Unrecognised IOCTL command\n");
+			pr_info("Unrecognised IOCTL command %u\n", ioctl_num);
 	}
 	return 0;
 }
