@@ -1,0 +1,10 @@
+#ifndef __CAPSTONE_SBI_H_
+#define __CAPSTONE_SBI_H_
+
+
+#define SBI_EXT_CAPSTONE 0x12345678
+
+#define SBI_EXT_CAPSTONE_DOM_CREATE 0x0
+
+
+#endif

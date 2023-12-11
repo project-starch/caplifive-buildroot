@@ -12,12 +12,13 @@
 #include <asm/sbi.h>
 #include <asm/errno.h>
 #include "../include/capstone.h"
-
-#define SBI_EXT_CAPSTONE 0x12345678
+#include "capstone-sbi.h"
 
 #define MAJOR_NUM 190
 #define DEVICE_NAME "capstone"
 #define DEVICE_FILE_NAME "capstone"
+
+#define DOMAIN_DATA_SIZE (4096 * 4)
 
 #define SUCCESS 0
 
@@ -55,38 +56,35 @@ static void create_dom(struct ioctl_dom_create_args* __user args) {
 	copy_from_user(&m_args, args, sizeof(struct ioctl_dom_create_args));
 
 	// allocate a contiguous memory region and copy code there
-	unsigned long code_pages = (m_args.code_len - 1) / PAGE_SIZE + 1;
-	unsigned long code_pages_log2 = code_pages == 1 ? 0 : (ilog2(code_pages - 1) + 1);
-	
-	unsigned long dom_code_vaddr = (unsigned long)__get_free_pages(GFP_HIGHUSER, code_pages_log2);
-	if (!dom_code_vaddr) {
-		pr_alert("Failed to allocate code region for domain.\n");
+	unsigned long dom_tot_size = m_args.code_len + DOMAIN_DATA_SIZE;
+	unsigned long dom_pages = (dom_tot_size - 1) / PAGE_SIZE + 1;
+	unsigned long dom_pages_log2 = dom_pages == 1 ? 0 : (ilog2(dom_pages - 1) + 1);
+
+	unsigned long dom_vaddr = (unsigned long)__get_free_pages(GFP_HIGHUSER, dom_pages_log2);
+	if (!dom_vaddr) {
+		pr_alert("Failed to allocate memory for domain.\n");
 		return;
 	}
 
-	unsigned long dom_code_paddr = __pa(dom_code_vaddr);
+	unsigned long dom_paddr = __pa(dom_vaddr);
 	// TODO: do we still need to do this on page granularity?
-	pr_info("Domain code vaddr = %lx, paddr = %lx\n", dom_code_vaddr, dom_code_paddr);
+	pr_info("Domain memory region vaddr = %lx, paddr = %lx\n", dom_vaddr, dom_paddr);
 
-	// we just get one page for now
-	unsigned long dom_data_vaddr = (unsigned long)__get_free_pages(GFP_HIGHUSER, 0);
-	if (!dom_data_vaddr) {
-		pr_alert("Failed to allocate data region for domain.\n");
-		goto clean_up_code_region;
-	}
-	unsigned long dom_data_paddr = __pa(dom_data_vaddr);
-	pr_info("Domain data vaddr = %lx, paddr = %lx\n", dom_data_vaddr, dom_data_paddr);
-
-	return;
-clean_up_code_region:
-	free_pages(dom_code_vaddr, code_pages_log2);
+	copy_from_user((void*)dom_vaddr, m_args.code_begin, m_args.code_len);
+	
+	struct sbiret sbi_res = sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_DOM_CREATE,
+		/* base paddr = */ dom_paddr,
+		/* code size = */ m_args.code_len,
+		/* tot size = */ (1 << dom_pages_log2) * PAGE_SIZE, 
+		/* entry offset = */ m_args.entry_offset,
+		0, 0);
+	pr_info("From C mode: %lx\n", sbi_res.value);
 }
 
 static long device_ioctl(struct file* file,
 					     unsigned int ioctl_num,
 						 unsigned long ioctl_param)
 {
-	struct sbiret sbi_res;
 	switch (ioctl_num) {
 		case IOCTL_DOM_CREATE:
 			// printk(KERN_INFO "Hello!\n");
