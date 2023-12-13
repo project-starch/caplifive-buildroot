@@ -9,6 +9,17 @@
 
 __domentry void test(__domret void* ra, unsigned* res) {
     // while(1);
-    *res = 42;
+    unsigned a = 1;
+    unsigned b = 1;
+    unsigned tmp;
+
+    int i;
+    for(i = 1; i < 10; i += 1) {
+        tmp = a + b;
+        a = b;
+        b = tmp;
+    }
+
+    *res = b;
     __domreturn(ra, test, 0);
 }

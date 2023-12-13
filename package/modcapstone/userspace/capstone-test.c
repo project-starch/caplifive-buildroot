@@ -25,13 +25,26 @@ static void open_device() {
     }
 }
 
-static int create_dom(void *code_begin, size_t code_len, size_t entry_offset) {
+static dom_id_t create_dom(void *code_begin, size_t code_len, size_t entry_offset) {
     struct ioctl_dom_create_args args = {
         .code_begin = code_begin,
         .code_len = code_len,
-        .entry_offset = entry_offset
+        .entry_offset = entry_offset,
+        .dom_id = -1
     };
-    return ioctl(dev_fd, IOCTL_DOM_CREATE, (unsigned long)&args);
+    if (ioctl(dev_fd, IOCTL_DOM_CREATE, (unsigned long)&args)) {
+        return -1;
+    }
+    return args.dom_id;
+}
+
+static unsigned long call_dom(dom_id_t dom_id) {
+    struct ioctl_dom_call_args args = {
+        .dom_id = dom_id,
+        .retval = 0
+    };
+    ioctl(dev_fd, IOCTL_DOM_CALL, (unsigned long)&args);
+    return args.retval;
 }
 
 int main(int argc, char** argv) {
@@ -111,8 +124,16 @@ int main(int argc, char** argv) {
         goto clean_up_mmap;
     }
 
-    create_dom(((void*)elf_header) + phdrs[ph_idx].p_offset, phdrs[ph_idx].p_filesz,
+    dom_id_t dom_id = create_dom(((void*)elf_header) + phdrs[ph_idx].p_offset, phdrs[ph_idx].p_filesz,
             elf_header->e_entry - phdrs[ph_idx].p_vaddr);
+    printf("Created domain ID = %lu\n", dom_id);
+
+    unsigned long dom_retval = call_dom(dom_id);
+    printf("Called dom retval = %lu\n", dom_retval);
+
+    // FIXME: repeated calls not working right now
+    // dom_retval = call_dom(dom_id);
+    // printf("Called dom retval (2nd) = %lu\n", dom_retval);
 
 clean_up_mmap:
     munmap(elf_header, file_stat.st_size);

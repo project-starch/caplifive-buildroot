@@ -78,7 +78,23 @@ static void create_dom(struct ioctl_dom_create_args* __user args) {
 		/* tot size = */ (1 << dom_pages_log2) * PAGE_SIZE, 
 		/* entry offset = */ m_args.entry_offset,
 		0, 0);
+
 	pr_info("From C mode: %lx\n", sbi_res.value);
+	
+	m_args.dom_id = (dom_id_t)sbi_res.value;
+
+	copy_to_user(args, &m_args, sizeof(struct ioctl_dom_create_args));
+}
+
+static void call_dom(struct ioctl_dom_call_args* __user args) {
+	struct ioctl_dom_call_args m_args;
+	copy_from_user(&m_args, args, sizeof(struct ioctl_dom_call_args));
+
+	struct sbiret sbi_res = sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_DOM_CALL,
+				m_args.dom_id, 0, 0, 0, 0, 0);
+	m_args.retval = sbi_res.value;
+
+	copy_to_user(args, &m_args, sizeof(struct ioctl_dom_call_args));
 }
 
 static long device_ioctl(struct file* file,
@@ -87,11 +103,10 @@ static long device_ioctl(struct file* file,
 {
 	switch (ioctl_num) {
 		case IOCTL_DOM_CREATE:
-			// printk(KERN_INFO "Hello!\n");
-			// sbi_res = sbi_ecall(SBI_EXT_CAPSTONE, 0, 0, 0, 0, 0, 0, 0);
-			// printk(KERN_INFO "From C mode: %ld\n", sbi_res.value);
 			create_dom((struct ioctl_dom_create_args* __user)ioctl_param);
-
+			break;
+		case IOCTL_DOM_CALL:
+			call_dom((struct ioctl_dom_call_args* __user)ioctl_param);
 			break;
 		default:
 			pr_info("Unrecognised IOCTL command %u\n", ioctl_num);
