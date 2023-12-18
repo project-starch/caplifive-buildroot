@@ -14,6 +14,5 @@ define MODCAPSTONE_INSTALL_TARGET_CMDS
 	$(INSTALL) -D -m 0755 '$(@D)/run-test' '$(TARGET_DIR)/run-test'
 endef
 
-$(eval $(kernel-module))
 $(eval $(generic-package))
 
