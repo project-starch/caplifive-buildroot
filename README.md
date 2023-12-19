@@ -68,4 +68,10 @@ To install or uninstall the kernel module,
 
 After the kernel module is installed, you can run the test program
 
-    /capstone-test
+    /capstone-test <test domain ELF file> [<number of times to call the domain (default: 1)>]
+
+The `/run-test` script does all the operations above.
+
+    /run-test <test domain name> [<number of times to call the domain (default: 1)>]
+
+The test domain name does not include the `.dom` suffix.
