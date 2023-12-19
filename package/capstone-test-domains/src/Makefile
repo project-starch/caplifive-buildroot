@@ -1,10 +1,14 @@
 .PHONY: all
 
-all: $(CURDIR)/test.dom
+DOMS_SRC = $(wildcard $(CURDIR)/*.dom.c)
+DOMS_S = $(patsubst %.dom.c,%.dom.S,$(DOMS_SRC))
+DOMS_TARGETS = $(patsubst %.dom.c,%.dom,$(DOMS_SRC))
+
+all: $(DOMS_TARGETS)
 
 
-$(CURDIR)/test.dom: $(CURDIR)/test.dom.S
+$(DOMS_TARGETS):%:%.S
 	$(CC) -static -nostdlib -fPIC -o "$@" "$^"
 
-$(CURDIR)/test.dom.S: $(CURDIR)/test.dom.c
+$(DOMS_S):%.S:%.c
 	cd "$(CAPSTONE_CC_PATH)" && cargo run -- --abi capstone "$^" > "$@"

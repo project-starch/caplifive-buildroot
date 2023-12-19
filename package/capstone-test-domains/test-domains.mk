@@ -7,7 +7,7 @@ define CAPSTONE_TEST_DOMAINS_BUILD_CMDS
 endef
 
 define CAPSTONE_TEST_DOMAINS_INSTALL_TARGET_CMDS
-	$(INSTALL) -D -m 0755 '$(@D)/test.dom' '$(TARGET_DIR)/test-domains/test.dom'
+	$(INSTALL) -D -m 0755 '$(@D)/'*.dom '$(TARGET_DIR)/test-domains/'
 endef
 
 $(eval $(generic-package))
