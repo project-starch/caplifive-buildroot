@@ -4,6 +4,9 @@ set -e
 
 insmod /capstone.ko
 DOM_NAME=$1
-shift
-/capstone-test /test-domains/$DOM_NAME.dom $@
+if [ -f /test-domains/$DOM_NAME.smode ]; then
+    /capstone-test /test-domains/$DOM_NAME.dom $2 /test-domains/$DOM_NAME.smode
+else
+    /capstone-test /test-domains/$DOM_NAME.dom $2
+fi
 rmmod capstone

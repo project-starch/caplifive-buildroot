@@ -22,6 +22,11 @@
 
 unsigned initialised;
 
+__attribute__((naked)) static void trap_entry() {
+    __asm__ volatile(".insn r 0x5b, 0x1, 0x43, x0, a0, x0");
+    while(1);
+}
+
 __domentry __domreentry void call_handler(__domret void* ra, unsigned *buf) {
     if (initialised) {
         *buf = 1;
@@ -29,13 +34,12 @@ __domentry __domreentry void call_handler(__domret void* ra, unsigned *buf) {
         // initialise the S mode with code in buf
         // FIXME: set cmmu when it is fixed
         // assuming the entry is right at the beginning for now
-        unsigned entry_addr;
-        entry_addr = __capfield(buf, 2);
-        PRINT(buf);
-        PRINT(entry_addr);
-        __asm__ volatile ("csrw mepc, %0" :: "r"(entry_addr));
+        __asm__ volatile ("ccsrrw(x0,cepc,%0)" :: "r"(buf));
         __asm__ volatile ("csrs mstatus, %0" :: "r"(1 << 11));
         __asm__ volatile ("csrw satp, x0");
+        __asm__ volatile ("ccsrrw(x0, ctvec, %0)" :: "r"(trap_entry));
+        __asm__ volatile ("csrw medeleg, x0");
+        // PRINT(0x42);
         // __asm__ volatile ("csrs mideleg, ")
         // FIXME: set mtvec
         __asm__ volatile ("mret");

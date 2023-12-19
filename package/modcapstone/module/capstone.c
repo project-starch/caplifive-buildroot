@@ -94,6 +94,8 @@ static void create_dom(struct ioctl_dom_create_args* __user args) {
 			return;
 		}
 
+		pr_info("Domain S-mode region vaddr = %lx, paddr = %lx\n", dom_s_code_vaddr, __pa(dom_s_code_vaddr));
+
 		copy_from_user((void*)dom_s_code_vaddr, m_args.s_code_begin, m_args.s_code_len);
 
 		sbi_res = sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_DOM_CALL_WITH_CAP,
