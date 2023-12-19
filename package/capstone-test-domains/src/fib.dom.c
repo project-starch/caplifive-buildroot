@@ -1,3 +1,10 @@
+/**
+ *  This domain computes a fibonacci number in the C mode and writes the result
+ *  using a capability passed as an argument.
+ * 
+*/
+
+
 #define __linear __attribute__((linear))
 #define __dom __attribute__((dom))
 #define __rev __attribute__((rev))

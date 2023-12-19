@@ -14,6 +14,9 @@ struct ioctl_dom_create_args {
     void *code_begin;
     size_t code_len;
     size_t entry_offset;
+    void *s_code_begin;
+    size_t s_code_len;
+    size_t s_entry_offset;
     dom_id_t dom_id;
     // TODO: pass info about the required data region size
 };

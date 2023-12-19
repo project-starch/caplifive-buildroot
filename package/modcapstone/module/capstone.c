@@ -53,6 +53,7 @@ static ssize_t device_write(struct file *file,
 
 static void create_dom(struct ioctl_dom_create_args* __user args) {
 	struct ioctl_dom_create_args m_args;
+
 	copy_from_user(&m_args, args, sizeof(struct ioctl_dom_create_args));
 
 	// allocate a contiguous memory region and copy code there
@@ -71,19 +72,38 @@ static void create_dom(struct ioctl_dom_create_args* __user args) {
 	pr_info("Domain memory region vaddr = %lx, paddr = %lx\n", dom_vaddr, dom_paddr);
 
 	copy_from_user((void*)dom_vaddr, m_args.code_begin, m_args.code_len);
-	
+
 	struct sbiret sbi_res = sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_DOM_CREATE,
 		/* base paddr = */ dom_paddr,
 		/* code size = */ m_args.code_len,
 		/* tot size = */ (1 << dom_pages_log2) * PAGE_SIZE, 
 		/* entry offset = */ m_args.entry_offset,
 		0, 0);
-
-	pr_info("From C mode: %lx\n", sbi_res.value);
-	
 	m_args.dom_id = (dom_id_t)sbi_res.value;
-
 	copy_to_user(args, &m_args, sizeof(struct ioctl_dom_create_args));
+
+	if (m_args.s_code_len > 0) {
+		// this domain has an S mode
+		// call the domain with the code region to allow initialisation
+
+		unsigned long dom_s_code_pages = (m_args.s_code_len - 1) / PAGE_SIZE + 1;
+		unsigned long dom_s_code_pages_log2 = dom_s_code_pages == 1 ? 0 : (ilog2(dom_s_code_pages - 1) + 1);
+		unsigned long dom_s_code_vaddr = (unsigned long)__get_free_pages(GFP_HIGHUSER, dom_s_code_pages_log2);
+		if(!dom_s_code_pages) {
+			pr_alert("Failed to allocate S-mode code region for domain.\n");
+			return;
+		}
+
+		copy_from_user((void*)dom_s_code_vaddr, m_args.s_code_begin, m_args.s_code_len);
+
+		sbi_res = sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_DOM_CALL_WITH_CAP,
+			m_args.dom_id, __pa(dom_s_code_vaddr), m_args.s_code_len,
+			__pa(dom_s_code_vaddr) + m_args.s_entry_offset, 0, 0);
+		
+		if (sbi_res.value) {
+			pr_alert("Failed to initialise S mode\n");
+		}
+	}
 }
 
 static void call_dom(struct ioctl_dom_call_args* __user args) {

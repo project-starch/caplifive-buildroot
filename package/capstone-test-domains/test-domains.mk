@@ -8,6 +8,7 @@ endef
 
 define CAPSTONE_TEST_DOMAINS_INSTALL_TARGET_CMDS
 	$(INSTALL) -D -m 0755 '$(@D)/'*.dom '$(TARGET_DIR)/test-domains/'
+	$(INSTALL) -D -m 0755 '$(@D)/'*.smode '$(TARGET_DIR)/test-domains/'
 endef
 
 $(eval $(generic-package))

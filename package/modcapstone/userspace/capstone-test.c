@@ -11,6 +11,13 @@
 #include <fcntl.h>
 #include "../include/capstone.h"
 
+struct ElfCode {
+    int fd;
+    void *map_base;
+    unsigned long code_start, code_len;
+    off_t size, entry_offset;
+};
+
 static int dev_fd;
 
 static const unsigned char ELF_HEADER_MAGIC[4] = {
@@ -25,13 +32,23 @@ static void open_device() {
     }
 }
 
-static dom_id_t create_dom(void *code_begin, size_t code_len, size_t entry_offset) {
+static dom_id_t create_dom(const struct ElfCode *c_code,
+                           const struct ElfCode *s_code) {
     struct ioctl_dom_create_args args = {
-        .code_begin = code_begin,
-        .code_len = code_len,
-        .entry_offset = entry_offset,
+        .code_begin = c_code->code_start,
+        .code_len = c_code->code_len,
+        .entry_offset = c_code->entry_offset,
         .dom_id = -1
     };
+    
+    if(s_code) {
+        args.s_code_begin = s_code->code_start;
+        args.s_code_len = s_code->code_len;
+        args.s_entry_offset = s_code->entry_offset;
+    } else {
+        args.s_code_len = 0;
+    }
+
     if (ioctl(dev_fd, IOCTL_DOM_CREATE, (unsigned long)&args)) {
         return -1;
     }
@@ -47,31 +64,18 @@ static unsigned long call_dom(dom_id_t dom_id) {
     return args.retval;
 }
 
-int main(int argc, char** argv) {
+static int load_elf_code(const char *file_name, struct ElfCode *res) {
     int retval = 0;
-    if (argc < 2) {
-        fprintf(stderr, "Please provide the domain file name!\n");
-        return 1;
-    }
-    char* file_name = argv[1];
-
-    unsigned times = 1; // how many times to run the domain
-    if (argc >= 3) {
-        times = atoi(argv[2]);
-    }
-
-    open_device();
 
     int elf_fd = open(file_name, O_RDONLY);
     if (elf_fd < 0) {
         fprintf(stderr, "Failed to open the file.\n");
-        retval = 1;
-        goto clean_up_dev;
+        return 1;
     }
 
     struct stat file_stat;
     if (fstat(elf_fd, &file_stat) < 0) {
-        fprintf(stderr, "Failed to get state of th file.\n");
+        fprintf(stderr, "Failed to get state of the file.\n");
         retval = 1;
         goto clean_up_file;
     }
@@ -129,18 +133,14 @@ int main(int argc, char** argv) {
         goto clean_up_mmap;
     }
 
-    dom_id_t dom_id = create_dom(((void*)elf_header) + phdrs[ph_idx].p_offset, phdrs[ph_idx].p_filesz,
-            elf_header->e_entry - phdrs[ph_idx].p_vaddr);
-    printf("Created domain ID = %lu\n", dom_id);
+    res->fd = elf_fd;
+    res->map_base = (void*)elf_header;
+    res->size = file_stat.st_size;
+    res->code_start = (unsigned long)elf_header + phdrs[ph_idx].p_offset;
+    res->code_len = phdrs[ph_idx].p_filesz;
+    res->entry_offset = elf_header->e_entry - phdrs[ph_idx].p_vaddr;
 
-    for (unsigned i = 1; i <= times; i ++) {
-        unsigned long dom_retval = call_dom(dom_id);
-        printf("Called dom (%u-th time) retval = %lu\n", i, dom_retval);
-    }
-
-    // FIXME: repeated calls not working right now
-    // dom_retval = call_dom(dom_id);
-    // printf("Called dom retval (2nd) = %lu\n", dom_retval);
+    return 0;
 
 clean_up_mmap:
     munmap(elf_header, file_stat.st_size);
@@ -148,12 +148,61 @@ clean_up_mmap:
 clean_up_file:
     close(elf_fd);
 
+    return retval;
+}
 
-    // int retval = ioctl(dev_fd, IOCTL_HELLO, 0);
+static void release_elf_code(struct ElfCode *elf_code) {
+    munmap(elf_code->map_base, elf_code->code_len);
+    close(elf_code->fd);
+}
 
-    // if (retval < 0) {
-    //     fprintf(stderr, "Errors in ioctl: %d\n", retval);
-    // }
+int main(int argc, char** argv) {
+    int retval = 0;
+    if (argc < 2) {
+        fprintf(stderr, "Please provide the domain file name!\n");
+        return 1;
+    }
+    char* file_name = argv[1];
+
+    unsigned times = 1; // how many times to run the domain
+    if (argc >= 3) {
+        times = atoi(argv[2]);
+    }
+
+    open_device();
+
+    struct ElfCode c_code, s_code;
+
+    retval = load_elf_code(file_name, &c_code);
+    if (retval) {
+        goto clean_up_dev;
+    }
+
+    dom_id_t dom_id;
+    if (argc >= 4) {
+        retval = load_elf_code(argv[3], &s_code);
+        if (retval) {
+            goto clean_up_c_code;
+        }
+        dom_id = create_dom(&c_code, &s_code);
+    } else {
+        dom_id = create_dom(&c_code, NULL);
+    }
+    printf("Created domain ID = %lu\n", dom_id);
+
+
+    for (unsigned i = 1; i <= times; i ++) {
+        unsigned long dom_retval = call_dom(dom_id);
+        printf("Called dom (%u-th time) retval = %lu\n", i, dom_retval);
+    }
+
+clean_up_s_code:
+    if (argc >= 4) {
+        release_elf_code(&s_code);
+    }
+
+clean_up_c_code:
+    release_elf_code(&c_code);
 
 clean_up_dev:
 
