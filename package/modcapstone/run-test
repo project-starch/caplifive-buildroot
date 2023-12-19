@@ -1,4 +1,4 @@
 #!/bin/sh
 
 insmod /capstone.ko
-/capstone-test /test-domains/test.dom
+/capstone-test /test-domains/test.dom $@

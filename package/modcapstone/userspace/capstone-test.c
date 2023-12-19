@@ -55,6 +55,11 @@ int main(int argc, char** argv) {
     }
     char* file_name = argv[1];
 
+    unsigned times = 1; // how many times to run the domain
+    if (argc >= 3) {
+        times = atoi(argv[2]);
+    }
+
     open_device();
 
     int elf_fd = open(file_name, O_RDONLY);
@@ -128,8 +133,10 @@ int main(int argc, char** argv) {
             elf_header->e_entry - phdrs[ph_idx].p_vaddr);
     printf("Created domain ID = %lu\n", dom_id);
 
-    unsigned long dom_retval = call_dom(dom_id);
-    printf("Called dom retval = %lu\n", dom_retval);
+    for (unsigned i = 1; i <= times; i ++) {
+        unsigned long dom_retval = call_dom(dom_id);
+        printf("Called dom (%u-th time) retval = %lu\n", i, dom_retval);
+    }
 
     // FIXME: repeated calls not working right now
     // dom_retval = call_dom(dom_id);
