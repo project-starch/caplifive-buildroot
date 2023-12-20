@@ -17,5 +17,8 @@ __attribute__((naked)) void _start() {
     int r = fibonacci(10);
 	register unsigned long a0 asm ("a0") = (unsigned long)(r);
     __asm__ volatile ("ecall" :: "r"(a0));
+    r = fibonacci(11);
+    a0 = (unsigned long)(r);
+    __asm__ volatile ("ecall" :: "r"(a0));
     while(1);
 }
