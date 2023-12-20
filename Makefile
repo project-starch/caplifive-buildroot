@@ -2,9 +2,9 @@ SHELL := /bin/bash
 BUILDROOT_EXTERNAL = $(CURDIR)
 DEFCONFIG = $(CURDIR)/configs/qemu_capstone_defconfig
 CONFIG_PATH = $(CURDIR)/build
-CAPSTONE_S_OUTPUT = $(CURDIR)/components/opensbi/lib/sbi/sbi_capstone.S
-CAPSTONE_S_INPUT = $(CURDIR)/components/opensbi/lib/sbi/sbi_capstone.c
-CAPSTONE_S_INCLUDE = $(CURDIR)/components/opensbi/include
+CAPSTONE_S_OUTPUT = $(CURDIR)/components/opensbi/lib/sbi/capstone-sbi/sbi_capstone.c.S
+CAPSTONE_S_INPUT = $(CURDIR)/components/opensbi/lib/sbi/capstone-sbi/sbi_capstone.c
+CAPSTONE_S_INCLUDE = $(CURDIR)/components/opensbi/lib/sbi/capstone-sbi
 
 .PHONY: all setup build clean
 
