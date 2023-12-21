@@ -119,6 +119,37 @@ static void call_dom(struct ioctl_dom_call_args* __user args) {
 	copy_to_user(args, &m_args, sizeof(struct ioctl_dom_call_args));
 }
 
+static void create_region(struct ioctl_region_create_args* __user args) {
+	struct ioctl_region_create_args m_args;
+	copy_from_user(&m_args, args, sizeof(struct ioctl_region_create_args));
+
+	unsigned long n_pages = (m_args.len - 1) / PAGE_SIZE + 1;
+	unsigned long n_pages_log2 = n_pages == 1 ? 0 : (ilog2(n_pages - 1) + 1);
+
+	unsigned long vaddr = (unsigned long)__get_free_pages(GFP_HIGHUSER, n_pages_log2);
+	if(!vaddr) {
+		pr_alert("Failed to allocate memory region.\n");
+		return;
+	}
+
+	struct sbiret sbi_res = sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_CREATE,
+				__pa(vaddr), m_args.len, 0, 0, 0, 0);
+	m_args.region_id = sbi_res.value;
+
+	copy_to_user(args, &m_args, sizeof(struct ioctl_region_create_args));
+}
+
+static void share_region(struct ioctl_region_share_args* __user args) {
+	struct ioctl_region_share_args m_args;
+	copy_from_user(&m_args, args, sizeof(struct ioctl_region_share_args));
+
+	struct sbiret sbi_res = sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_SHARE,
+				m_args.dom_id, m_args.region_id, 0, 0, 0, 0);
+	m_args.retval = sbi_res.value;
+
+	copy_to_user(args, &m_args, sizeof(struct ioctl_region_share_args));
+}
+
 static long device_ioctl(struct file* file,
 					     unsigned int ioctl_num,
 						 unsigned long ioctl_param)
@@ -129,6 +160,12 @@ static long device_ioctl(struct file* file,
 			break;
 		case IOCTL_DOM_CALL:
 			call_dom((struct ioctl_dom_call_args* __user)ioctl_param);
+			break;
+		case IOCTL_REGION_CREATE:
+		 	create_region((struct ioctl_region_create_args* __user)ioctl_param);
+			break;
+		case IOCTL_REGION_SHARE:
+		 	share_region((struct ioctl_region_share_args* __user)ioctl_param);
 			break;
 		default:
 			pr_info("Unrecognised IOCTL command %u\n", ioctl_num);
