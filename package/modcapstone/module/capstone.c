@@ -5,22 +5,36 @@
 #include <linux/printk.h>
 #include <linux/uaccess.h>
 #include <linux/module.h>
+#include <linux/moduleparam.h>
 #include <linux/kernel.h>
 #include <linux/device.h>
+#include <linux/mm.h>
 #include <linux/fs.h>
 #include <linux/version.h>
+#include <linux/miscdevice.h>
 #include <asm/sbi.h>
 #include <asm/errno.h>
 #include "../include/capstone.h"
 #include "capstone-sbi.h"
 
-#define MAJOR_NUM 190
 #define DEVICE_NAME "capstone"
 #define DEVICE_FILE_NAME "capstone"
 
 #define DOMAIN_DATA_SIZE (4096 * 4)
 
 #define SUCCESS 0
+
+
+#define MAX_REGION_N 64
+
+struct RegionInfo {
+	region_id_t region_id;
+	unsigned long base_paddr;
+	size_t len;
+};
+
+static struct RegionInfo regions[MAX_REGION_N];
+static int region_n;
 
 static int device_open(struct inode *inode, struct file *file) {
 	try_module_get(THIS_MODULE);
@@ -136,6 +150,11 @@ static void create_region(struct ioctl_region_create_args* __user args) {
 				__pa(vaddr), m_args.len, 0, 0, 0, 0);
 	m_args.region_id = sbi_res.value;
 
+	regions[region_n].region_id = m_args.region_id;
+	regions[region_n].base_paddr = __pa(vaddr);
+	regions[region_n].len = m_args.len;
+	++ region_n;
+
 	copy_to_user(args, &m_args, sizeof(struct ioctl_region_create_args));
 }
 
@@ -173,39 +192,56 @@ static long device_ioctl(struct file* file,
 	return 0;
 }
 
+static int device_mmap(struct file *filp, struct vm_area_struct *vma) {
+	if(!region_n)
+		return -EINVAL;
+	struct RegionInfo *region_info = &regions[0];
+	if(vma->vm_end - vma->vm_start + (vma->vm_pgoff << PAGE_SHIFT) > region_info->len)
+		return -EINVAL;
+
+	remap_pfn_range(vma, vma->vm_start,
+		(region_info->base_paddr + (vma->vm_pgoff << PAGE_SHIFT)) >> PAGE_SHIFT,
+		vma->vm_end - vma->vm_start,
+		vma->vm_page_prot);
+
+	return 0;
+}
+
 static struct file_operations fops = {
+	.owner = THIS_MODULE,
 	.read = device_read,
 	.write = device_write,
 	.unlocked_ioctl = device_ioctl,
 	.open = device_open,
+	.mmap = device_mmap,
 	.release = device_release
+};
+
+static struct miscdevice capstone_dev = {
+	.minor = MISC_DYNAMIC_MINOR,
+	.name = "capstone",
+	.fops = &fops,
+	.mode = 0666	
 };
 
 static struct class *cls;
 
 static int __init capstone_init(void)
 {
-	int retval = register_chrdev(MAJOR_NUM, DEVICE_NAME, &fops);
+	int retval = misc_register(&capstone_dev);
 	if (retval < 0) {
-		pr_alert("Failed to register device major number %u for %s", MAJOR_NUM, DEVICE_NAME);
+		pr_alert("Failed to register device\n");
 		return retval;
 	}
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 4, 0)
-	cls = class_create(DEVICE_FILE_NAME);
-#else
-	cls = class_create(THIS_MODULE, DEVICE_FILE_NAME);
-#endif
-	device_create(cls, NULL, MKDEV(MAJOR_NUM, 0), NULL, DEVICE_FILE_NAME);
+	region_n = 0;
 
 	return 0;
 }
 
 static void __exit capstone_exit(void)
 {
-	device_destroy(cls, MKDEV(MAJOR_NUM, 0));
-	class_destroy(cls);
-	unregister_chrdev(MAJOR_NUM, DEVICE_NAME);
+	misc_deregister(&capstone_dev);
 }
 
 

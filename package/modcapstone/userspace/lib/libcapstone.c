@@ -25,7 +25,7 @@ static const unsigned char ELF_HEADER_MAGIC[4] = {
 };
 
 static int open_device() {
-    dev_fd = open(CAPSTONE_DEV_PATH, O_NONBLOCK);
+    dev_fd = open(CAPSTONE_DEV_PATH, O_NONBLOCK | O_RDWR);
     if (dev_fd < 0) {
         return dev_fd;
     }
@@ -213,4 +213,9 @@ void share_region(dom_id_t dom_id, region_id_t region_id) {
         .retval = 0
     };
     ioctl(dev_fd, IOCTL_REGION_SHARE, (unsigned long)&args);
+}
+
+void *map_region(region_id_t region_id, unsigned long len) {
+    return mmap(NULL, len, PROT_READ | PROT_WRITE, MAP_SHARED,
+        dev_fd, 0);
 }

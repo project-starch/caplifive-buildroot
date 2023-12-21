@@ -11,5 +11,6 @@ dom_id_t create_dom(const char *c_path, const char *s_path);
 unsigned long call_dom(dom_id_t dom_id);
 region_id_t create_region(unsigned long len);
 void share_region(dom_id_t dom_id, region_id_t region_id);
+void *map_region(region_id_t region_id, unsigned long len);
 
 #endif
