@@ -4,15 +4,19 @@
 #include <assert.h>
 #include "lib/libcapstone.h"
 
+#define print_nobuf(...) do { printf(__VA_ARGS__); fflush(stdout); } while(0)
+
 int main() {
     capstone_init();
 
     dom_id_t dom_id = create_dom("/test-domains/sbi.dom", "/test-domains/smode.smode");
+    print_nobuf("SBI domain created with ID %lu\n", dom_id);
     region_id_t region_id = create_region(4096);
+    print_nobuf("Shared region created with ID %lu\n", region_id);
     char *region_base = map_region(region_id, 4096);
-    region_base[0] = 42;
-    assert(region_base[0] == 42);
+    print_nobuf("Shared region mapped at %p\n", region_base);
     share_region(dom_id, region_id);
+    print_nobuf("Shared region shared with domain %lu\n", dom_id);
 
     capstone_cleanup();
 

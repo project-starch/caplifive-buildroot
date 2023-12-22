@@ -15,7 +15,7 @@
 
 #define PRINT(v) __asm__ volatile(".insn r 0x5b, 0x1, 0x43, x0, %0, x0" :: "r"(v))
 
-__domentry __domreentry void test(__domret void* ra, unsigned* res) {
+__domentry __domreentry void test(__domret void* ra, unsigned func, unsigned* res) {
     // while(1);
     unsigned a = 1;
     unsigned b = 1;
