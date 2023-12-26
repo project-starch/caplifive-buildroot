@@ -115,7 +115,7 @@ static void create_dom(struct ioctl_dom_create_args* __user args) {
 		sbi_res = sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_DOM_CALL_WITH_CAP,
 			m_args.dom_id, __pa(dom_s_code_vaddr), m_args.s_code_len,
 			__pa(dom_s_code_vaddr) + m_args.s_entry_offset, 0, 0);
-		
+
 		if (sbi_res.value) {
 			pr_alert("Failed to initialise S mode\n");
 		}
@@ -223,8 +223,6 @@ static struct miscdevice capstone_dev = {
 	.fops = &fops,
 	.mode = 0666	
 };
-
-static struct class *cls;
 
 static int __init capstone_init(void)
 {
