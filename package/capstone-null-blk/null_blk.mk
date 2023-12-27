@@ -9,6 +9,7 @@ endef
 
 define CAPSTONE_NULL_BLK_INSTALL_TARGET_CMDS
 	$(INSTALL) -D -m 0755 '$(@D)/driver/null_blk.ko' '$(TARGET_DIR)/null_blk.ko'
+	$(INSTALL) -D -m 0755 '$(@D)/debug/nullb_debug.sh' '$(TARGET_DIR)/nullb_debug.sh'
 endef
 
 $(eval $(generic-package))

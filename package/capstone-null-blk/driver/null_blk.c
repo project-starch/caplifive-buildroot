@@ -110,7 +110,8 @@ module_param_string(init_hctx, g_init_hctx_str, sizeof(g_init_hctx_str), 0444);
 MODULE_PARM_DESC(init_hctx, "Fault injection to fail hctx init. init_hctx=<interval>,<probability>,<space>,<times>");
 #endif
 
-static int g_queue_mode = NULL_Q_MQ;
+// static int g_queue_mode = NULL_Q_MQ;
+static int g_queue_mode =NULL_Q_BIO; // default queue mode set to bio-based
 
 static int null_param_store_val(const char *str, int *val, int min, int max)
 {
