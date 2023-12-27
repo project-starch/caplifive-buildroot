@@ -14,6 +14,7 @@
 #include <linux/miscdevice.h>
 #include <asm/sbi.h>
 #include <asm/errno.h>
+#include <asm/string.h>
 #include "../include/capstone.h"
 #include "capstone-sbi.h"
 
@@ -70,6 +71,11 @@ static void create_dom(struct ioctl_dom_create_args* __user args) {
 
 	copy_from_user(&m_args, args, sizeof(struct ioctl_dom_create_args));
 
+	if(m_args.s_size < m_args.s_load_len) {
+		pr_alert("Invalid arguments for create_dom: s_size must not be lower than s_load_len\n");
+		return;
+	}
+
 	// allocate a contiguous memory region and copy code there
 	unsigned long dom_tot_size = m_args.code_len + DOMAIN_DATA_SIZE;
 	unsigned long dom_pages = (dom_tot_size - 1) / PAGE_SIZE + 1;
@@ -96,25 +102,26 @@ static void create_dom(struct ioctl_dom_create_args* __user args) {
 	m_args.dom_id = (dom_id_t)sbi_res.value;
 	copy_to_user(args, &m_args, sizeof(struct ioctl_dom_create_args));
 
-	if (m_args.s_code_len > 0) {
+	if (m_args.s_load_len > 0) {
 		// this domain has an S mode
 		// call the domain with the code region to allow initialisation
 
-		unsigned long dom_s_code_pages = (m_args.s_code_len - 1) / PAGE_SIZE + 1;
-		unsigned long dom_s_code_pages_log2 = dom_s_code_pages == 1 ? 0 : (ilog2(dom_s_code_pages - 1) + 1);
-		unsigned long dom_s_code_vaddr = (unsigned long)__get_free_pages(GFP_HIGHUSER, dom_s_code_pages_log2);
-		if(!dom_s_code_pages) {
+		unsigned long dom_s_load_pages = (m_args.s_size - 1) / PAGE_SIZE + 1;
+		unsigned long dom_s_load_pages_log2 = dom_s_load_pages == 1 ? 0 : (ilog2(dom_s_load_pages - 1) + 1);
+		unsigned long dom_s_load_vaddr = (unsigned long)__get_free_pages(GFP_HIGHUSER, dom_s_load_pages_log2);
+		if(!dom_s_load_pages) {
 			pr_alert("Failed to allocate S-mode code region for domain.\n");
 			return;
 		}
 
-		pr_info("Domain S-mode region vaddr = %lx, paddr = %lx\n", dom_s_code_vaddr, __pa(dom_s_code_vaddr));
+		pr_info("Domain S-mode region vaddr = %lx, paddr = %lx\n", dom_s_load_vaddr, __pa(dom_s_load_vaddr));
 
-		copy_from_user((void*)dom_s_code_vaddr, m_args.s_code_begin, m_args.s_code_len);
+		copy_from_user((void*)dom_s_load_vaddr, m_args.s_load_begin, m_args.s_load_len);
+		memset((void*)(dom_s_load_vaddr + m_args.s_load_len), 0, m_args.s_size - m_args.s_load_len);
 
 		sbi_res = sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_DOM_CALL_WITH_CAP,
-			m_args.dom_id, __pa(dom_s_code_vaddr), m_args.s_code_len,
-			__pa(dom_s_code_vaddr) + m_args.s_entry_offset, 0, 0);
+			m_args.dom_id, __pa(dom_s_load_vaddr), m_args.s_size,
+			__pa(dom_s_load_vaddr) + m_args.s_entry_offset, 0, 0);
 
 		if (sbi_res.value) {
 			pr_alert("Failed to initialise S mode\n");

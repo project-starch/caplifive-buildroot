@@ -9,9 +9,13 @@
 #define __domreentry __attribute__((domreentry))
 #define __domreentryrestores __attribute__((domreentryrestores))
 
+#define cap_cursor(cap) __capfield((cap), 2)
+
 unsigned initialised;
 
 __domentry __domreentryrestores void entry(__domret void *ra, unsigned func, unsigned *buf) {
+    int handled;
+    unsigned s_entry_addr;
     if(initialised) {
         caller_dom = ra;
         int handled = handle_dpi(func, buf);
@@ -21,8 +25,8 @@ __domentry __domreentryrestores void entry(__domret void *ra, unsigned func, uns
         }
         ra = caller_dom;
     } else {
-        C_PRINT(buf);
-        __asm__ volatile ("ccsrrw(x0,cepc,%0)" :: "r"(buf));
+        s_entry_addr = cap_cursor(buf);
+        __asm__ volatile ("ccsrrw(x0,cepc,%0)" :: "r"(s_entry_addr));
         __asm__ volatile ("csrw mcause, x0");
         __asm__ volatile ("csrw mtval, x0");
         __asm__ volatile ("csrw scause, x0");
@@ -32,6 +36,7 @@ __domentry __domreentryrestores void entry(__domret void *ra, unsigned func, uns
         __asm__ volatile ("csrw mstatus, %0" :: "r"(1 << 11));
         __asm__ volatile ("csrw satp, x0");
         __asm__ volatile ("csrw offsetmmu, x0");
+        __asm__ volatile ("ccsrrw(x0, cmmu, %0)" :: "r"(buf));
         __asm__ volatile ("ccsrrw(x0, ctvec, %0)" :: "r"(_cap_trap_entry));
         __asm__ volatile ("csrw medeleg, x0");
 
