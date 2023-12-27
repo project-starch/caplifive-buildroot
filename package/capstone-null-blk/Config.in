@@ -1,0 +1,8 @@
+config BR2_PACKAGE_CAPSTONE_NULL_BLK
+    bool "capstone_null_blk"
+    select BR2_TOOLCHAIN_HEADERS_AT_LEAST_6_1
+    help
+        Null block driver with Captainer support.
+
+        https://capstone.kisp-lab.org/
+
