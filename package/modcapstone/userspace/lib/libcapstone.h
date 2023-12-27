@@ -1,7 +1,7 @@
 #ifndef __LIB_CAPSTONE_H__
 #define __LIB_CAPSTONE_H__
 
-#include "../../include/capstone.h"
+#include "capstone.h"
 
 int capstone_init();
 int capstone_cleanup();
