@@ -5,7 +5,7 @@ set -e
 echo "install configfs"
 modprobe configfs
 echo "install null_blk"
-insmod /null_blk.ko
+insmod ./null_blk.ko
 echo "ls -l /dev | grep nullb"
 ls -l /dev | grep nullb
 echo "dmesg | grep null_blk"
