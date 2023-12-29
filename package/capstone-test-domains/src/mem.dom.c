@@ -6,60 +6,86 @@
 #define __domentry __attribute__((domentry))
 #define __domreentry __attribute__((domreentry))
 
-#define PRINT(v) __asm__ volatile(".insn r 0x5b, 0x1, 0x43, x0, %0, x0" :: "r"(v))
+#define PRINT(v) __asm__ volatile(".insn r 0x5b, 0x1, 0x43, x0, %0, x0" ::"r"(v))
 #define CAPSTONE_DPI_REGION_SHARE 0x1
 
 #define SERVER_GET 0xacef
 #define SERVER_PUT 0xaddd
-#define CLIENT_GET 0xcef
+#define CLIENT_GET 0xccef
 #define CLIENT_PUT 0xcadd
-#define ACK 0xacc
+#define ACK 0xaccc
+
+
+#define PROD_NUMBER 25
 
 static unsigned *shared_region;
 
-__domentry __domreentry void mem(__domret void* ra, unsigned func, unsigned* res) {
-    if (func == CAPSTONE_DPI_REGION_SHARE) {
+__domentry __domreentry void mem(__domret void *ra, unsigned action, unsigned *res)
+{
+    unsigned i = 0;
+
+    if (action == CAPSTONE_DPI_REGION_SHARE) {
         shared_region = res;
     } else {
         unsigned op = *shared_region;
         op = op << 32 >> 32;
 
-        if (op == CLIENT_GET) {
+        if (op == CLIENT_PUT) {
             /**
              * The client got something from the server
-            */
+             */
 
             /**
-             * Clear the operation
-            */
-        //    *shared_region = 0;
-
-            /**
-            * Print data from the server domain for now
-            */
+             * Print data from the server domain for now
+             */
             unsigned vars_nr = *(shared_region + 4);
-            // *(shared_region + 4) = 0;
+            *(shared_region + 4) = 0;
             vars_nr = vars_nr << 32 >> 32;
+
             PRINT(vars_nr);
-            unsigned i = 0;
+
             while (i < vars_nr) {
-                PRINT(*(shared_region + 8 + 4 * i) << 32 >> 32);
-                // *(shared_region + 8 + 4 * i) = 0;
+                unsigned val = *(shared_region + 8 + 4 * i);
+                // val = val << 32 >> 32;
+                PRINT(val);
+
                 i = i + 1;
             }
 
-            // *shared_region = ACK; /** TODO: Why is this not working and causing OOB access */
-            *res = ACK;
+            i = 0;
+            while (i < vars_nr) {
+                *(shared_region + 8 + 4 * i) = 0;
+                i = i + 1;
+            }
+
+            *shared_region = ACK;
+            /**
+             * Return the number of consumed values so the serve knows if more domains calls are needed
+            */
+            *res = vars_nr;
             __domreturn(ra, __mem_reentry, 0);
         }
         if (op == SERVER_GET) {
             /**
-             * The client should put something in the shared region for the serve to get
+             * The client should produce something for the serve to consume
+             */
+
+            /**
+             * Produce values for the server process
             */
-           PRINT(0xdeadbeef);
-           op = 123;
-           *res = ACK;
-           __domreturn(ra, __mem_reentry, 0);
+        //    *shared_region = SERVER_PUT;  /** Set the proper operation for the server - disabled for now */
+           *(shared_region + 1) = PROD_NUMBER;
+
+            i = 0;
+            while (i < PROD_NUMBER) {
+                *(shared_region + 8 + 4 * i) = i * i * i * i;
+
+                i = i + 1;
+            }
+
+            *shared_region = ACK;
+            *res = PROD_NUMBER;
+            __domreturn(ra, __mem_reentry, 0);
         }
     }
 
