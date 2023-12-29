@@ -2,7 +2,7 @@ SHELL := /bin/bash
 BUILDROOT_EXTERNAL = $(CURDIR)
 DEFCONFIG = $(CURDIR)/configs/qemu_capstone_defconfig
 CONFIG_PATH = $(CURDIR)/build
-CAPSTONE_S_OUTPUT = $(CURDIR)/components/opensbi/lib/sbi/capstone-sbi/sbi_capstone.c.S
+CAPSTONE_S_OUTPUT = $(CURDIR)/components/opensbi/lib/sbi/capstone-sbi/sbi_capstone.c.S $(CURDIR)/components/opensbi/lib/sbi/capstone_int_handler.c.S
 CAPSTONE_S_INPUT = $(CURDIR)/components/opensbi/lib/sbi/capstone-sbi/sbi_capstone.c
 CAPSTONE_S_INCLUDE = $(CURDIR)/components/opensbi/lib/sbi/capstone-sbi
 
@@ -22,7 +22,7 @@ build: $(CAPSTONE_S_OUTPUT)
 	fi
 
 
-$(CAPSTONE_S_OUTPUT): $(CAPSTONE_S_INPUT)
+$(CAPSTONE_S_OUTPUT):%.c.S:%.c
 	cd "$(CAPSTONE_CC_PATH)" && if ! /bin/sh -c 'cargo run -- --abi capstone $^ -- -I"$(CAPSTONE_S_INCLUDE)" -D__riscv_xlen=64 > "$@"'; then \
 		rm -f "$@"; \
 		echo "Compilation error. Make sure you supply the correct Capstone-C compiler directory path in CAPSTONE_CC_PATH" >&2; \
