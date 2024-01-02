@@ -20,6 +20,13 @@ static DECLARE_FAULT_ATTR(null_requeue_attr);
 static DECLARE_FAULT_ATTR(null_init_hctx_attr);
 #endif
 
+/*extern symbols from nullb_split_driver.ko*/
+extern int ns_null_validate_conf(void);
+extern struct nullb_queue *ns_nullb_to_queue(void);
+extern enum req_op ns_bio_op(void);
+extern int ns_null_cache_active(void);
+extern void ns_end_cmd(void);
+
 static inline u64 mb_per_tick(int mbps)
 {
 	return (1 << 20) / TICKS_PER_SEC * ((u64) mbps);
