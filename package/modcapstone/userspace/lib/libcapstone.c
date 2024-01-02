@@ -2,6 +2,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <assert.h>
 #include <sys/ioctl.h>
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -15,6 +16,7 @@ struct ElfCode {
     int fd;
     void *map_base;
     unsigned long code_start, code_len;
+    unsigned long loadable_size;
     off_t size, entry_offset;
 };
 
@@ -120,6 +122,21 @@ static int load_elf_code(const char *file_name, struct ElfCode *res) {
     res->code_len = phdrs[ph_idx].p_filesz;
     res->entry_offset = elf_header->e_entry - phdrs[ph_idx].p_vaddr;
 
+    unsigned long loadable_start, loadable_end;
+    loadable_start = phdrs[ph_idx].p_vaddr;
+
+    for (ph_idx = phnum - 1; ph_idx >= 0; ph_idx --) {
+        if (phdrs[ph_idx].p_type == PT_LOAD) {
+            break;
+        }
+    }
+    assert(ph_idx >= 0);
+    loadable_end = phdrs[ph_idx].p_vaddr + phdrs[ph_idx].p_memsz;
+    assert(loadable_end > loadable_start);
+    res->loadable_size = loadable_end - loadable_start;
+
+    printf("Loadable size = %lu\n", res->loadable_size);
+
     return 0;
 
 clean_up_mmap:
@@ -146,11 +163,12 @@ static dom_id_t create_dom_from_elf(const struct ElfCode *c_code,
     };
     
     if(s_code) {
-        args.s_code_begin = s_code->code_start;
-        args.s_code_len = s_code->code_len;
+        args.s_load_begin = s_code->code_start;
+        args.s_load_len = s_code->code_len;
         args.s_entry_offset = s_code->entry_offset;
+        args.s_size = s_code->loadable_size;
     } else {
-        args.s_code_len = 0;
+        args.s_load_len = 0;
     }
 
     if (ioctl(dev_fd, IOCTL_DOM_CREATE, (unsigned long)&args)) {
