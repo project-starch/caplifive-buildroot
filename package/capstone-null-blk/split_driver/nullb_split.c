@@ -73,14 +73,14 @@ enum req_op nullbs_bio_op(void)
 }
 EXPORT_SYMBOL(nullbs_bio_op);
 
-void nullbs_end_cmd_bio(struct nullb_cmd *cmd)
+void nullbs_end_cmd_bio(void)
 {
 	struct nullb_cmd *cmd = (struct nullb_cmd *)nullbs_shared_region;
-	struct bio* bio = (struct nullb_cmd *)(nullbs_shared_region + sizeof(struct nullb_cmd));
+	struct bio* bio = (struct bio*)(nullbs_shared_region + sizeof(struct nullb_cmd));
 
 	bio->bi_status = cmd->error;
 }
-EXPORT_SYMBOL(nullbs_end_cmd);
+EXPORT_SYMBOL(nullbs_end_cmd_bio);
 
 static int __init nullb_split_init(void)
 {

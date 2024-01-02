@@ -24,8 +24,8 @@ static DECLARE_FAULT_ATTR(null_init_hctx_attr);
 extern char *nullbs_shared_region;
 extern int nullbs_null_validate_conf(void);
 extern struct nullb_queue *nullbs_nullb_to_queue(void);
-extern int nullbs_null_cache_active(void);
-extern void nullbs_end_cmd(void);
+enum req_op nullbs_bio_op(void);
+extern void nullbs_end_cmd_bio(void);
 
 static inline u64 mb_per_tick(int mbps)
 {
