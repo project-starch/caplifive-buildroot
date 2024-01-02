@@ -70,18 +70,31 @@ cmdline_parse_inst_t cmd_send = {
 };
 
 static void
-send_to_client_domain(dom_id_t __dom_id, void *__region_base)
+send_to_client_domain(dom_id_t __dom_id, void *__region_base, char *__msg_arr)
 {
     char *region_base = (char *)__region_base;
+    char *tok;
+    unsigned nr_vals = 0, val;
+    char *ptr;
+
+    tok = strtok(__msg_arr, " ");
+
+    printf("Array sent to client:");
+    while (tok != NULL) {
+        val = strtoul(tok, &ptr, 10);
+        printf(" %x", val);
+        *(unsigned *)(region_base + 8 + 4 * nr_vals) = val;
+        nr_vals++;
+
+        tok = strtok(NULL, " ");
+    }
+    printf("\n");
 
 	/**
 	 * Send information to the client domain
 	*/
 	*(unsigned *)region_base = CLIENT_PUT;
-	*(unsigned *)(region_base + 4) = 3;
-	for (int i = 0; i < 3; ++i) {
-		*(unsigned *)(region_base + 8 + 4 * i) = i * i * i;
-	}
+	*(unsigned *)(region_base + 4) = nr_vals;
 	unsigned long return_dom = call_dom(__dom_id);
 
 	/**
@@ -117,7 +130,7 @@ static void cmd_send_to_domain_parsed(void *parsed_result,
         return;
     }
 
-    send_to_client_domain(dom_id, region_base);
+    send_to_client_domain(dom_id, region_base, res->m_msg_arr);
 }
 
 cmdline_parse_token_string_t cmd_send_to_domain_action =
@@ -167,7 +180,7 @@ receive_from_client_domain(dom_id_t __dom_id, void *__region_base)
 
     fprintf(stdout, "\n");
 
-	fprintf(stdout, "Server processed %lu values.\n", return_dom);
+	fprintf(stdout, "Server processed %lu values.\n", nr_recv_vals);
 }
 
 static void cmd_receive_from_domain_parsed(void *parsed_result,

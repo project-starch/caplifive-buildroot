@@ -11,3 +11,4 @@ echo 2048 > /sys/kernel/mm/hugepages/hugepages-2048kB/nr_hugepages
 # python3 /etc/init.d/.usertools/dpdk-devbind.py --bind=vfio-pci eth1
 # python3 /etc/init.d/.usertools/dpdk-devbind.py --bind=vfio-pci eth2
 # -l 0 -n 4 -- -p 3 -n 2
+# mount -t hugetlbfs nodev /mnt/huge && echo 2048 > /sys/kernel/mm/hugepages/hugepages-2048kB/nr_hugepages

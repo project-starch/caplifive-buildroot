@@ -278,16 +278,20 @@ init_client_domains()
 		exit(1);
 	}
 
-	/**
-	 * TODO: Possibly change the file name for each client
-	*/
-	char *file_name = "test-domains/mem.dom";
+	char *filename;
 	dom_id_t dom_id;
 	region_id_t region_id;
 
 	for (i = 0; i < num_clients; ++i) {
-		dom_id = create_dom(file_name, NULL);
-		printf("Created domain ID = %lu\n", dom_id);
+		filename = NULL;
+		asprintf(&filename, "test-domains/dpdk_client%hhu.dom", i + 1);
+		if (filename == NULL) {
+			fprintf(stderr, "%d: Could not alloc memory for filename.", __LINE__);
+			exit(EXIT_FAILURE);
+		}
+
+		dom_id = create_dom(filename, NULL);
+		printf("Created domain from %s with ID = %lu\n", filename, dom_id);
 
 		region_id = create_region(4096);
 		char *region_base = map_region(region_id, 4096);
@@ -295,6 +299,8 @@ init_client_domains()
 		share_region(dom_id, region_id);
 		client_domains[i].id = dom_id;
 		client_domains[i].region_base = region_base;
+
+		free(filename);
 	}
 
 	set_client_domains(client_domains);

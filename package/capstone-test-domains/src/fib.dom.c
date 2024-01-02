@@ -30,11 +30,3 @@ __domentry __domreentry void test(__domret void* ra, unsigned func, unsigned* re
     *res = b;
     __domreturn(ra, __test_reentry, 0);
 }
-
-// __domentry void str_test(__domret void *ra, char *res)
-// {
-// 	char *hello_str = "Hello world!";
-// 	res = hello_str;
-
-// 	__domreturn(ra, str_test, 0);
-// }
