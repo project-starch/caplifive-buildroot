@@ -66,13 +66,13 @@ static ssize_t device_write(struct file *file,
 	return 0;
 }
 
-static void create_dom(struct ioctl_dom_create_args* __user args) {
+static void ioctl_create_dom(struct ioctl_dom_create_args* __user args) {
 	struct ioctl_dom_create_args m_args;
 
 	copy_from_user(&m_args, args, sizeof(struct ioctl_dom_create_args));
 
 	if(m_args.s_size < m_args.s_load_len) {
-		pr_alert("Invalid arguments for create_dom: s_size must not be lower than s_load_len\n");
+		pr_alert("Invalid arguments for ioctl_create_dom: s_size must not be lower than s_load_len\n");
 		return;
 	}
 
@@ -129,18 +129,23 @@ static void create_dom(struct ioctl_dom_create_args* __user args) {
 	}
 }
 
-static void call_dom(struct ioctl_dom_call_args* __user args) {
+unsigned long call_dom(dom_id_t dom_id)  {
+	struct sbiret sbi_res = sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_DOM_CALL,
+				dom_id, 0, 0, 0, 0, 0);
+	return sbi_res.value;
+}
+EXPORT_SYMBOL(call_dom);
+
+static void ioctl_call_dom(struct ioctl_dom_call_args* __user args) {
 	struct ioctl_dom_call_args m_args;
 	copy_from_user(&m_args, args, sizeof(struct ioctl_dom_call_args));
 
-	struct sbiret sbi_res = sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_DOM_CALL,
-				m_args.dom_id, 0, 0, 0, 0, 0);
-	m_args.retval = sbi_res.value;
+	m_args.retval = call_dom(m_args.dom_id);
 
 	copy_to_user(args, &m_args, sizeof(struct ioctl_dom_call_args));
 }
 
-static void create_region(struct ioctl_region_create_args* __user args) {
+static void ioctl_create_region(struct ioctl_region_create_args* __user args) {
 	struct ioctl_region_create_args m_args;
 	copy_from_user(&m_args, args, sizeof(struct ioctl_region_create_args));
 
@@ -165,13 +170,18 @@ static void create_region(struct ioctl_region_create_args* __user args) {
 	copy_to_user(args, &m_args, sizeof(struct ioctl_region_create_args));
 }
 
-static void share_region(struct ioctl_region_share_args* __user args) {
+unsigned long share_region(dom_id_t dom_id, region_id_t region_id) {
+	struct sbiret sbi_res = sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_SHARE,
+				dom_id, region_id, 0, 0, 0, 0);
+	return sbi_res.value;	
+}
+EXPORT_SYMBOL(share_region);
+
+static void ioctl_share_region(struct ioctl_region_share_args* __user args) {
 	struct ioctl_region_share_args m_args;
 	copy_from_user(&m_args, args, sizeof(struct ioctl_region_share_args));
 
-	struct sbiret sbi_res = sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_SHARE,
-				m_args.dom_id, m_args.region_id, 0, 0, 0, 0);
-	m_args.retval = sbi_res.value;
+	m_args.retval = share_region(m_args.dom_id, m_args.region_id);
 
 	copy_to_user(args, &m_args, sizeof(struct ioctl_region_share_args));
 }
@@ -182,16 +192,16 @@ static long device_ioctl(struct file* file,
 {
 	switch (ioctl_num) {
 		case IOCTL_DOM_CREATE:
-			create_dom((struct ioctl_dom_create_args* __user)ioctl_param);
+			ioctl_create_dom((struct ioctl_dom_create_args* __user)ioctl_param);
 			break;
 		case IOCTL_DOM_CALL:
-			call_dom((struct ioctl_dom_call_args* __user)ioctl_param);
+			ioctl_call_dom((struct ioctl_dom_call_args* __user)ioctl_param);
 			break;
 		case IOCTL_REGION_CREATE:
-		 	create_region((struct ioctl_region_create_args* __user)ioctl_param);
+		 	ioctl_create_region((struct ioctl_region_create_args* __user)ioctl_param);
 			break;
 		case IOCTL_REGION_SHARE:
-		 	share_region((struct ioctl_region_share_args* __user)ioctl_param);
+		 	ioctl_share_region((struct ioctl_region_share_args* __user)ioctl_param);
 			break;
 		default:
 			pr_info("Unrecognised IOCTL command %u\n", ioctl_num);
