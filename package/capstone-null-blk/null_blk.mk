@@ -7,6 +7,9 @@ define CAPSTONE_NULL_BLK_BUILD_CMDS
 		KERNEL_ARCH=$(KERNEL_ARCH) TARGET_CROSS=$(TARGET_CROSS)
 	$(MAKE) -C '$(@D)'/module_split LINUX_DIR='$(LINUX_DIR)' PWD='$(@D)'/module_split CC='$(TARGET_CC)' LD='$(TARGET_LD)' \
 		KERNEL_ARCH=$(KERNEL_ARCH) TARGET_CROSS=$(TARGET_CROSS)
+	$(MAKE) -C '$(@D)'/capstone_split/module LINUX_DIR='$(LINUX_DIR)' PWD='$(@D)'/capstone_split/module CC='$(TARGET_CC)' LD='$(TARGET_LD)' \
+		KERNEL_ARCH=$(KERNEL_ARCH) TARGET_CROSS=$(TARGET_CROSS)
+	$(MAKE) -C '$(@D)'/capstone_split/sdom CC='$(TARGET_CC)' LD='$(TARGET_LD)'
 endef
 
 define CAPSTONE_NULL_BLK_INSTALL_TARGET_CMDS
@@ -15,6 +18,8 @@ define CAPSTONE_NULL_BLK_INSTALL_TARGET_CMDS
 	$(INSTALL) -D -m 0755 '$(@D)/module_split/null_blk.ko' '$(TARGET_DIR)/nullb/module_split/null_blk.ko'
 	$(INSTALL) -D -m 0755 '$(@D)/module_split/nullb_split.ko' '$(TARGET_DIR)/nullb/module_split/nullb_split.ko'
 	$(INSTALL) -D -m 0755 '$(@D)/debug/debug_module_split.sh' '$(TARGET_DIR)/nullb/module_split/debug_module_split.sh'
+	$(INSTALL) -D -m 0755 '$(@D)/capstone_split/module/null_blk.ko' '$(TARGET_DIR)/nullb/capstone_split/null_blk.ko'
+	$(INSTALL) -D -m 0755 '$(@D)/capstone_split/sdom/nullb_split.smode' '$(TARGET_DIR)/nullb/capstone_split/nullb_split.smode'
 endef
 
 $(eval $(generic-package))
