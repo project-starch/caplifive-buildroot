@@ -15,9 +15,10 @@ struct ioctl_dom_create_args {
     void *code_begin;
     size_t code_len;
     size_t entry_offset;
-    void *s_code_begin;
-    size_t s_code_len;
+    void *s_load_begin;
+    size_t s_load_len;
     size_t s_entry_offset;
+    size_t s_size;
     dom_id_t dom_id;
     // TODO: pass info about the required data region size
 };
@@ -43,9 +44,11 @@ struct ioctl_dom_get_data_args {
     unsigned long retval;
 };
 
+
 #define IOCTL_DOM_CREATE			_IOWR(IOC_MAGIC, 0, struct ioctl_dom_create_args)
 #define IOCTL_DOM_CALL  			_IOWR(IOC_MAGIC, 1, struct ioctl_dom_call_args)
 #define IOCTL_REGION_CREATE         _IOWR(IOC_MAGIC, 2, struct ioctl_region_create_args)
 #define IOCTL_REGION_SHARE          _IOWR(IOC_MAGIC, 3, struct ioctl_region_share_args)
+#define IOCTL_DOM_DATA_GET          _IOWR(IOC_MAGIC, 2, struct ioctl_dom_get_data_args)
 
 #endif

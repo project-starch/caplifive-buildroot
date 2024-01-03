@@ -74,7 +74,8 @@ send_to_client_domain(dom_id_t __dom_id, void *__region_base, char *__msg_arr)
 {
     char *region_base = (char *)__region_base;
     char *tok;
-    unsigned nr_vals = 0, val;
+    unsigned nr_vals = 0;
+    unsigned long long val;
     char *ptr;
 
     tok = strtok(__msg_arr, " ");
@@ -83,7 +84,7 @@ send_to_client_domain(dom_id_t __dom_id, void *__region_base, char *__msg_arr)
     while (tok != NULL) {
         val = strtoul(tok, &ptr, 10);
         printf(" %x", val);
-        *(unsigned *)(region_base + 8 + 4 * nr_vals) = val;
+        *(unsigned long long *)(region_base + 16 + 8 * nr_vals) = val;
         nr_vals++;
 
         tok = strtok(NULL, " ");
@@ -93,14 +94,14 @@ send_to_client_domain(dom_id_t __dom_id, void *__region_base, char *__msg_arr)
 	/**
 	 * Send information to the client domain
 	*/
-	*(unsigned *)region_base = CLIENT_PUT;
-	*(unsigned *)(region_base + 4) = nr_vals;
+	*(unsigned long long *)region_base = CLIENT_PUT;
+	*(unsigned long long *)(region_base + 8) = nr_vals;
 	unsigned long return_dom = call_dom(__dom_id);
 
 	/**
 	 * Wait for client to process information
 	*/
-	while (*(unsigned *)region_base != ACK);
+	while (*(unsigned long long *)region_base != ACK);
 	fprintf(stdout, "Client processed %lu values.\n", return_dom);
 }
 
@@ -162,20 +163,20 @@ receive_from_client_domain(dom_id_t __dom_id, void *__region_base)
 	/**
 	 * Send information to the client domain
 	*/
-	*(unsigned *)region_base = SERVER_GET;
-	unsigned long return_dom = call_dom(__dom_id);
+	*(unsigned long long *)region_base = SERVER_GET;
+	unsigned long long return_dom = call_dom(__dom_id);
 
 	/**
 	 * Wait for client to process information
 	*/
-	while (*(unsigned *)region_base != ACK);
+	while (*(unsigned long long *)region_base != ACK);
 
-    nr_recv_vals = *(unsigned *)(region_base + 4);
+    nr_recv_vals = *(unsigned long long *)(region_base + 8);
 
     fprintf(stdout, "Number of elements about to be consumed: %u.\n", nr_recv_vals);
     fprintf(stdout, "Received from client domain %u:", __dom_id);
 	for (unsigned i = 0; i < nr_recv_vals; ++i) {
-        fprintf(stdout, " %u", *(unsigned *)(region_base + 8 + 4 * i));
+        fprintf(stdout, " %u", *(unsigned long long *)(region_base + 16 + 8 * i));
 	}
 
     fprintf(stdout, "\n");
