@@ -21,6 +21,8 @@ int main() {
 
     print_nobuf("To call domain ID = %lu\n", dom_id);
     print_nobuf("Call returned = %lu\n", call_dom(dom_id));
+    print_nobuf("To call (2nd time) domain ID = %lu\n", dom_id);
+    print_nobuf("Call returned = %lu\n", call_dom(dom_id));
 
     capstone_cleanup();
 
