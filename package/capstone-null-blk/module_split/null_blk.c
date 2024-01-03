@@ -787,7 +787,11 @@ static void end_cmd(struct nullb_cmd *cmd)
 		blk_mq_end_request(cmd->rq, cmd->error);
 		return;
 	case NULL_Q_BIO:
-		cmd->bio->bi_status = cmd->error;
+		// cmd->bio->bi_status = cmd->error;
+		memcpy(nullbs_shared_region, cmd, sizeof(struct nullb_cmd));
+		memcpy(nullbs_shared_region + sizeof(struct nullb_cmd), cmd->bio, sizeof(struct bio));
+		nullbs_end_cmd_bio();
+		memcpy(cmd->bio, nullbs_shared_region + sizeof(struct nullb_cmd), sizeof(struct bio));
 		bio_endio(cmd->bio);
 		break;
 	}
@@ -1281,8 +1285,10 @@ static int null_handle_bio(struct nullb_cmd *cmd)
 	spin_lock_irq(&nullb->lock);
 	bio_for_each_segment(bvec, bio, iter) {
 		len = bvec.bv_len;
+		memcpy(nullbs_shared_region, bio, sizeof(struct bio));
+		enum req_op bio_op_rv = nullbs_bio_op();
 		err = null_transfer(nullb, bvec.bv_page, len, bvec.bv_offset,
-				     op_is_write(bio_op(bio)), sector,
+				     op_is_write(bio_op_rv), sector,
 				     bio->bi_opf & REQ_FUA);
 		if (err) {
 			spin_unlock_irq(&nullb->lock);
@@ -1372,7 +1378,9 @@ static void nullb_zero_read_cmd_buffer(struct nullb_cmd *cmd)
 	if (dev->memory_backed)
 		return;
 
-	if (dev->queue_mode == NULL_Q_BIO && bio_op(cmd->bio) == REQ_OP_READ) {
+	memcpy(nullbs_shared_region, cmd->bio, sizeof(struct bio));
+	enum req_op bio_op_rv = nullbs_bio_op();
+	if (dev->queue_mode == NULL_Q_BIO && bio_op_rv == REQ_OP_READ) {
 		zero_fill_bio(cmd->bio);
 	} else if (req_op(cmd->rq) == REQ_OP_READ) {
 		__rq_for_each_bio(bio, cmd->rq)
@@ -1509,9 +1517,13 @@ static void null_submit_bio(struct bio *bio)
 	sector_t sector = bio->bi_iter.bi_sector;
 	sector_t nr_sectors = bio_sectors(bio);
 	struct nullb *nullb = bio->bi_bdev->bd_disk->private_data;
-	struct nullb_queue *nq = nullb_to_queue(nullb);
+	// struct nullb_queue *nq = nullb_to_queue(nullb);
+	memcpy(nullbs_shared_region, nullb, sizeof(struct nullb));
+	struct nullb_queue *nq = nullbs_nullb_to_queue();
 
-	null_handle_cmd(alloc_cmd(nq, bio), sector, nr_sectors, bio_op(bio));
+	memcpy(nullbs_shared_region, bio, sizeof(struct bio));
+	enum req_op bio_op_rv = nullbs_bio_op();
+	null_handle_cmd(alloc_cmd(nq, bio), sector, nr_sectors, bio_op_rv);
 }
 
 static bool should_timeout_request(struct request *rq)
