@@ -9,7 +9,8 @@ define CAPSTONE_NULL_BLK_BUILD_CMDS
 		KERNEL_ARCH=$(KERNEL_ARCH) TARGET_CROSS=$(TARGET_CROSS)
 	$(MAKE) -C '$(@D)'/capstone_split/module LINUX_DIR='$(LINUX_DIR)' PWD='$(@D)'/capstone_split/module CC='$(TARGET_CC)' LD='$(TARGET_LD)' \
 		KERNEL_ARCH=$(KERNEL_ARCH) TARGET_CROSS=$(TARGET_CROSS)
-	$(MAKE) -C '$(@D)'/capstone_split/sdom CC='$(TARGET_CC)' LD='$(TARGET_LD)'
+	$(MAKE) -C '$(@D)'/capstone_split/sdom LINUX_DIR='$(LINUX_DIR)' PWD='$(@D)'/capstone_split/sdom CC='$(TARGET_CC)' LD='$(TARGET_LD)' \
+		KERNEL_ARCH=$(KERNEL_ARCH) TARGET_CROSS=$(TARGET_CROSS)
 endef
 
 define CAPSTONE_NULL_BLK_INSTALL_TARGET_CMDS

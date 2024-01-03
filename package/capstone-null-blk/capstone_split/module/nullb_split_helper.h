@@ -1,5 +1,5 @@
-#ifndef __NULLB_SPLIT_SMODE_H
-#define __NULLB_SPLIT_SMODE_H
+#ifndef __NULLB_SPLIT_HELPER_H
+#define __NULLB_SPLIT_HELPER_H
 
 /*domain*/
 #define NULLBS_NULL_VALIDATE_CONF 0x0
@@ -7,6 +7,8 @@
 #define NULLBS_BIO_OP 0x2
 #define NULLBS_END_CMD_BIO 0x3
 
+/* FIXME: domain id and region id need to be obtained*/
+#define DOMAIN_NULLB_SPLIT 0x1
 #define REGION_FUC_CODE 0x0
 #define REGION_RET_VAL 0x1
 #define REGION_SHARED_DATA 0x2
@@ -14,26 +16,6 @@
 typedef unsigned long dom_id_t;
 typedef unsigned long region_id_t;
 typedef unsigned long function_code_t;
-
-/*null block driver*/
-#include "../module/null_blk.h"
-
-static int g_poll_queues = 1;
-// set nr_cpu_ids to 1 (as per qemu impl) to avoid undefined extern symbol
-static unsigned int qemu_nr_cpu_ids = 1;
-
-enum {
-	NULL_IRQ_NONE		= 0,
-	NULL_IRQ_SOFTIRQ	= 1,
-	NULL_IRQ_TIMER		= 2,
-};
-
-enum nullb_device_flags {
-	NULLB_DEV_FL_CONFIGURED	= 0,
-	NULLB_DEV_FL_UP		= 1,
-	NULLB_DEV_FL_THROTTLED	= 2,
-	NULLB_DEV_FL_CACHE	= 3,
-};
 
 /*sbi*/
 #define SBI_EXT_CAPSTONE 0x12345678
@@ -81,4 +63,4 @@ static struct sbiret sbi_ecall(int ext, int fid, unsigned long arg0,
 	return ret;
 }
 
-#endif /* __NULLB_SPLIT_SMODE_H */
+#endif /* __NULLB_SPLIT_HELPER_H */

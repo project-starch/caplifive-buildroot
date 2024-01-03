@@ -1,9 +1,9 @@
-.PHONY: all
+ccflags-y := -Wno-declaration-after-statement -std=gnu99
 
-DOMS_SMODE_SRC = $(wildcard $(CURDIR)/*.smode.c)
-DOMS_SMODE_TARGETS = $(patsubst %.smode.c,%.smode,$(DOMS_SMODE_SRC))
+.PHONY: all clean
 
-all: $(DOMS_SMODE_TARGETS)
+all:
+	$(MAKE) -C '$(LINUX_DIR)' M='$(PWD)' ARCH=$(KERNEL_ARCH) CROSS_COMPILE=$(TARGET_CROSS) modules
 
-$(DOMS_SMODE_TARGETS):%:%.c
-	$(CC) -static -nostdlib -fPIC -o "$@" "$^"
+clean:
+	$(MAKE) -C '$(LINUX_DIR)' M='$(PWD)' ARCH=$(KERNEL_ARCH) CROSS_COMPILE=$(TARGET_CROSS) clean

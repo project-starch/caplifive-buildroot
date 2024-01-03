@@ -5,6 +5,7 @@
 #include <linux/fs.h>
 #include <linux/init.h>
 #include "null_blk.h"
+#include "nullb_split_helper.h"
 
 #undef pr_fmt
 #define pr_fmt(fmt)	"null_blk: " fmt

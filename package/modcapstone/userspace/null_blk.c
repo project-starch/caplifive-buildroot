@@ -4,25 +4,18 @@
 #include <assert.h>
 #include "lib/libcapstone.h"
 
-#define print_nobuf(...) do { printf(__VA_ARGS__); fflush(stdout); } while(0)
-
 int main() {
     capstone_init();
 
+    /* FIXME: domain id and region ids are not synced with nullb, nullb just assume the ids are from 0 for now */
     dom_id_t dom_id = create_dom("/test-domains/sbi.dom", "/nullb/capstone_split/nullb_split.smode");
-    print_nobuf("SBI domain created with ID %lu\n", dom_id);
-    region_id_t region_id = create_region(4096);
-    print_nobuf("Shared region created with ID %lu\n", region_id);
-    char *region_base = map_region(region_id, 4096);
-    print_nobuf("Shared region mapped at %p\n", region_base);
-    print_nobuf("To share the memory region\n");
-    share_region(dom_id, region_id);
-    print_nobuf("Shared region shared with domain %lu\n", dom_id);
+    region_id_t func_region_id = create_region(4096);
+    region_id_t rv_region_id = create_region(4096);
+    region_id_t data_region_id = create_region(4096);
 
-    print_nobuf("To call domain ID = %lu\n", dom_id);
-    print_nobuf("Call returned = %lu\n", call_dom(dom_id));
-    print_nobuf("To call (2nd time) domain ID = %lu\n", dom_id);
-    print_nobuf("Call returned = %lu\n", call_dom(dom_id));
+    share_region(dom_id, func_region_id);
+    share_region(dom_id, rv_region_id);
+    share_region(dom_id, data_region_id);
 
     capstone_cleanup();
 
