@@ -105,4 +105,5 @@ module_init(nullb_split_init);
 module_exit(nullb_split_exit);
 
 MODULE_DESCRIPTION("Null block driver split module.");
+MODULE_AUTHOR("The Capstone Team <https://capstone.kisp-lab.org/>");
 MODULE_LICENSE("GPL");

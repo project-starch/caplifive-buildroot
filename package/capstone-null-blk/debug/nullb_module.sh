@@ -4,6 +4,8 @@ set -e
 
 echo "install configfs"
 modprobe configfs
+echo "install nullb_split.ko"
+insmod ./nullb_split.ko
 echo "install null_blk"
 insmod ./null_blk.ko
 echo "ls -l /dev | grep nullb"

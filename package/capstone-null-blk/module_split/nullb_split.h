@@ -1,7 +1,7 @@
 #ifndef __NULL_BLK_SPLIT_H
 #define __NULL_BLK_SPLIT_H
 
-#include "../driver/null_blk.h"
+#include "null_blk.h"
 
 static int g_poll_queues = 1;
 // set nr_cpu_ids to 1 (as per qemu impl) to avoid undefined extern symbol

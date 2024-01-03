@@ -4,6 +4,7 @@
 #include <linux/sched.h>
 #include <linux/fs.h>
 #include <linux/init.h>
+#include <linux/string.h>
 #include "null_blk.h"
 
 #undef pr_fmt
@@ -2021,7 +2022,10 @@ static int null_add_dev(struct nullb_device *dev)
 	struct nullb *nullb;
 	int rv; // return value
 
-	rv = null_validate_conf(dev);
+	// rv = null_validate_conf(dev);
+	memcpy(nullbs_shared_region, dev, sizeof(struct nullb_device));
+	rv = nullbs_null_validate_conf();
+
 	if (rv)
 		return rv;
 
@@ -2307,5 +2311,5 @@ static void __exit null_exit(void)
 module_init(null_init);
 module_exit(null_exit);
 
-MODULE_AUTHOR("Jens Axboe <axboe@kernel.dk>");
+MODULE_AUTHOR("Jens Axboe <axboe@kernel.dk>, The Capstone Team <https://capstone.kisp-lab.org/>");
 MODULE_LICENSE("GPL");
