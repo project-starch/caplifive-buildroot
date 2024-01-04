@@ -40,6 +40,7 @@ __domentry __domreentryrestores void entry(__domret void *ra, unsigned func, uns
         __asm__ volatile ("ccsrrw(x0, ctvec, %0)" :: "r"(_cap_trap_entry));
         __asm__ volatile ("csrw medeleg, x0");
 
+        region_n = 1;
         initialised = 1;
     }
 

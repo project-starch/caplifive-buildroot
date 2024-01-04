@@ -147,6 +147,8 @@ static void ioctl_call_dom(struct ioctl_dom_call_args* __user args) {
 	copy_to_user(args, &m_args, sizeof(struct ioctl_dom_call_args));
 }
 
+static void probe_regions(void);
+
 static void ioctl_create_region(struct ioctl_region_create_args* __user args) {
 	struct ioctl_region_create_args m_args;
 	copy_from_user(&m_args, args, sizeof(struct ioctl_region_create_args));
@@ -164,16 +166,22 @@ static void ioctl_create_region(struct ioctl_region_create_args* __user args) {
 				__pa(vaddr), m_args.len, 0, 0, 0, 0);
 	m_args.region_id = sbi_res.value;
 
-	if(region_n != m_args.region_id) {
-		pr_alert("Region ID is different from the index of the region in the kernel module!\n");
+	if(region_n > m_args.region_id) {
+		pr_alert("Region ID reuse detected.\n");
+	} else if(region_n != m_args.region_id) {
+		probe_regions();
+		if(region_n <= m_args.region_id) {
+			pr_alert("Failed to fetch information about the newly created region.\n");
+		}
+	} else {
+		regions[region_n].region_id = m_args.region_id;
+		regions[region_n].base_paddr = __pa(vaddr);
+		regions[region_n].len = m_args.len;
+		regions[region_n].mmap_offset = pre_mmap_offset;
+		/* We need to round up to page size due to the limitation of mmap */
+		pre_mmap_offset = round_up(pre_mmap_offset + regions[region_n].len, PAGE_SIZE);
+		++ region_n;
 	}
-	regions[region_n].region_id = m_args.region_id;
-	regions[region_n].base_paddr = __pa(vaddr);
-	regions[region_n].len = m_args.len;
-	regions[region_n].mmap_offset = pre_mmap_offset;
-	/* We need to round up to page size due to the limitation of mmap */
-	pre_mmap_offset = round_up(pre_mmap_offset + regions[region_n].len, PAGE_SIZE);
-	++ region_n;
 
 	copy_to_user(args, &m_args, sizeof(struct ioctl_region_create_args));
 }

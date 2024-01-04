@@ -255,3 +255,7 @@ void *map_region(region_id_t region_id, unsigned long len) {
 void probe_regions(void) {
     ioctl(dev_fd, IOCTL_REGION_PROBE, 0);
 }
+
+int region_count(void) {
+    return region_n;
+}
