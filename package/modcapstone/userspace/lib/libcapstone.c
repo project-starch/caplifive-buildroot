@@ -12,6 +12,8 @@
 #include <fcntl.h>
 #include "libcapstone.h"
 
+#define MAX_REGION_N 64
+
 struct ElfCode {
     int fd;
     void *map_base;
@@ -21,6 +23,8 @@ struct ElfCode {
 };
 
 static int dev_fd;
+static size_t region_mmap_offsets[MAX_REGION_N];
+static int region_n;
 
 static const unsigned char ELF_HEADER_MAGIC[4] = {
     ELFMAG0, ELFMAG1, ELFMAG2, ELFMAG3
@@ -234,6 +238,20 @@ void share_region(dom_id_t dom_id, region_id_t region_id) {
 }
 
 void *map_region(region_id_t region_id, unsigned long len) {
+    while(region_n <= region_id) {
+        struct ioctl_region_query_args region_query_args;
+        region_query_args.region_id = region_n;
+        ioctl(dev_fd, IOCTL_REGION_QUERY, (unsigned long)&region_query_args);
+        if(region_query_args.len == 0) {
+            return NULL;
+        }
+        region_mmap_offsets[region_n] = region_query_args.mmap_offset;
+        ++ region_n;
+    }
     return mmap(NULL, len, PROT_READ | PROT_WRITE, MAP_SHARED,
-        dev_fd, 0);
+        dev_fd, region_mmap_offsets[region_id]);
+}
+
+void probe_regions(void) {
+    ioctl(dev_fd, IOCTL_REGION_PROBE, 0);
 }
