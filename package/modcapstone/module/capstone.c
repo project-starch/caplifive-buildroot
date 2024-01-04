@@ -29,11 +29,13 @@
 #define MAX_REGION_N 64
 
 struct RegionInfo {
-	region_id_t region_id;
+	region_id_t region_id; /* TODO: it is now assumed that region_id is the same as the index in regions[] */
 	unsigned long base_paddr;
 	size_t len;
+	size_t mmap_offset;
 };
 
+static size_t pre_mmap_offset;
 static struct RegionInfo regions[MAX_REGION_N];
 static int region_n;
 
@@ -145,6 +147,8 @@ static void ioctl_call_dom(struct ioctl_dom_call_args* __user args) {
 	copy_to_user(args, &m_args, sizeof(struct ioctl_dom_call_args));
 }
 
+static void probe_regions(void);
+
 static void ioctl_create_region(struct ioctl_region_create_args* __user args) {
 	struct ioctl_region_create_args m_args;
 	copy_from_user(&m_args, args, sizeof(struct ioctl_region_create_args));
@@ -162,10 +166,22 @@ static void ioctl_create_region(struct ioctl_region_create_args* __user args) {
 				__pa(vaddr), m_args.len, 0, 0, 0, 0);
 	m_args.region_id = sbi_res.value;
 
-	regions[region_n].region_id = m_args.region_id;
-	regions[region_n].base_paddr = __pa(vaddr);
-	regions[region_n].len = m_args.len;
-	++ region_n;
+	if(region_n > m_args.region_id) {
+		pr_alert("Region ID reuse detected.\n");
+	} else if(region_n != m_args.region_id) {
+		probe_regions();
+		if(region_n <= m_args.region_id) {
+			pr_alert("Failed to fetch information about the newly created region.\n");
+		}
+	} else {
+		regions[region_n].region_id = m_args.region_id;
+		regions[region_n].base_paddr = __pa(vaddr);
+		regions[region_n].len = m_args.len;
+		regions[region_n].mmap_offset = pre_mmap_offset;
+		/* We need to round up to page size due to the limitation of mmap */
+		pre_mmap_offset = round_up(pre_mmap_offset + regions[region_n].len, PAGE_SIZE);
+		++ region_n;
+	}
 
 	copy_to_user(args, &m_args, sizeof(struct ioctl_region_create_args));
 }
@@ -186,6 +202,42 @@ static void ioctl_share_region(struct ioctl_region_share_args* __user args) {
 	copy_to_user(args, &m_args, sizeof(struct ioctl_region_share_args));
 }
 
+static void probe_regions(void) {
+	struct sbiret sbi_res = sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_COUNT,
+			0, 0, 0, 0, 0, 0);
+	int new_region_n = sbi_res.value;
+	while(region_n < new_region_n) {
+		/* query information about the region */
+		regions[region_n].region_id = region_n;
+		sbi_res = sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_QUERY,
+			region_n, CAPSTONE_REGION_FIELD_BASE, 0, 0, 0, 0);
+		regions[region_n].base_paddr = sbi_res.value;
+		sbi_res = sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_QUERY,
+			region_n, CAPSTONE_REGION_FIELD_LEN, 0, 0, 0, 0);
+		regions[region_n].len = sbi_res.value;
+		regions[region_n].mmap_offset = pre_mmap_offset;
+		pre_mmap_offset = round_up(pre_mmap_offset + regions[region_n].len, PAGE_SIZE);
+		++ region_n;
+	}
+	region_n = new_region_n;
+}
+
+static void ioctl_region_query(struct ioctl_region_query_args* __user args) {
+	struct ioctl_region_query_args m_args;
+	copy_from_user(&m_args, args, sizeof(struct ioctl_region_query_args));
+	if(m_args.region_id >= region_n) {
+		m_args.len = m_args.mmap_offset = 0;
+	} else {
+		if(regions[m_args.region_id].region_id != m_args.region_id) {
+			pr_info("Region ID different from the index of the region!\n");
+		}
+		m_args.len = regions[m_args.region_id].len;
+		m_args.mmap_offset = regions[m_args.region_id].mmap_offset;
+	}
+
+	copy_to_user(args, &m_args, sizeof(struct ioctl_region_query_args));
+}
+
 static long device_ioctl(struct file* file,
 					     unsigned int ioctl_num,
 						 unsigned long ioctl_param)
@@ -203,6 +255,12 @@ static long device_ioctl(struct file* file,
 		case IOCTL_REGION_SHARE:
 		 	ioctl_share_region((struct ioctl_region_share_args* __user)ioctl_param);
 			break;
+		case IOCTL_REGION_QUERY:
+			ioctl_region_query((struct ioctl_region_query_args* __user)ioctl_param);
+			break;
+		case IOCTL_REGION_PROBE:
+			probe_regions();
+			break;
 		default:
 			pr_info("Unrecognised IOCTL command %u\n", ioctl_num);
 	}
@@ -212,13 +270,19 @@ static long device_ioctl(struct file* file,
 static int device_mmap(struct file *filp, struct vm_area_struct *vma) {
 	if(!region_n)
 		return -EINVAL;
-	struct RegionInfo *region_info = &regions[0];
-	if(vma->vm_end - vma->vm_start + (vma->vm_pgoff << PAGE_SHIFT) > region_info->len)
+	int i;
+	size_t vm_offset = vma->vm_pgoff << PAGE_SHIFT;
+	size_t vm_size = vma->vm_end - vma->vm_start;
+	for(i = 0; i < region_n && 
+		!(vm_offset >= regions[i].mmap_offset && vm_offset + vm_size <= regions[i].mmap_offset + regions[i].len);
+		i ++);
+	if(i >= region_n)
 		return -EINVAL;
+	struct RegionInfo *region_info = &regions[i];
 
 	remap_pfn_range(vma, vma->vm_start,
-		(region_info->base_paddr + (vma->vm_pgoff << PAGE_SHIFT)) >> PAGE_SHIFT,
-		vma->vm_end - vma->vm_start,
+		(region_info->base_paddr + (vm_offset - region_info->mmap_offset)) >> PAGE_SHIFT,
+		vm_size,
 		vma->vm_page_prot);
 
 	return 0;
@@ -250,6 +314,7 @@ static int __init capstone_init(void)
 	}
 
 	region_n = 0;
+	pre_mmap_offset = 0;
 
 	return 0;
 }
