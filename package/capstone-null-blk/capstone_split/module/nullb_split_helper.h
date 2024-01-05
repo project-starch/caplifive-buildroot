@@ -1,13 +1,18 @@
 #ifndef __NULLB_SPLIT_HELPER_H
 #define __NULLB_SPLIT_HELPER_H
 
-/*domain*/
+#define __NULLB_SPLIT_ENABLED__
+
+/*dpi*/
 #define NULLBS_NULL_VALIDATE_CONF 0x0
 #define NULLBS_NULLB_TO_QUEUE 0x1
 #define NULLBS_BIO_OP 0x2
 #define NULLBS_END_CMD_BIO 0x3
 
-/* FIXME: domain id and region id need to be obtained*/
+#define CALL_NULLB_SPLIT_DOMAIN sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_DOM_CALL, \
+				DOMAIN_NULLB_SPLIT, 0, 0, 0, 0, 0)
+
+/* indexing assumptions for simplicity*/
 #define DOMAIN_NULLB_SPLIT 0x1
 #define REGION_FUC_CODE 0x0
 #define REGION_RET_VAL 0x1

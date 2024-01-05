@@ -4,6 +4,7 @@
 #include <linux/sched.h>
 #include <linux/fs.h>
 #include <linux/init.h>
+#include <linux/string.h>
 #include "null_blk.h"
 #include "nullb_split_helper.h"
 
@@ -20,6 +21,11 @@ static DECLARE_FAULT_ATTR(null_timeout_attr);
 static DECLARE_FAULT_ATTR(null_requeue_attr);
 static DECLARE_FAULT_ATTR(null_init_hctx_attr);
 #endif
+
+// shared regions
+static function_code_t *nullbs_fuction_code;
+static char *nullbs_return_value;
+static char *nullbs_shared_region;
 
 static inline u64 mb_per_tick(int mbps)
 {
@@ -780,7 +786,15 @@ static void end_cmd(struct nullb_cmd *cmd)
 		blk_mq_end_request(cmd->rq, cmd->error);
 		return;
 	case NULL_Q_BIO:
+	#ifdef __NULLB_SPLIT_ENABLED__
+		*nullbs_fuction_code = NULLBS_END_CMD_BIO;
+		memcpy(nullbs_shared_region, cmd, sizeof(struct nullb_cmd));
+		memcpy(nullbs_shared_region + sizeof(struct nullb_cmd), cmd->bio, sizeof(struct bio));
+		CALL_NULLB_SPLIT_DOMAIN;
+		memcpy(cmd->bio, nullbs_shared_region + sizeof(struct nullb_cmd), sizeof(struct bio));
+	#else
 		cmd->bio->bi_status = cmd->error;
+	#endif
 		bio_endio(cmd->bio);
 		break;
 	}
@@ -1274,8 +1288,16 @@ static int null_handle_bio(struct nullb_cmd *cmd)
 	spin_lock_irq(&nullb->lock);
 	bio_for_each_segment(bvec, bio, iter) {
 		len = bvec.bv_len;
+	#ifdef __NULLB_SPLIT_ENABLED__
+		*nullbs_fuction_code = NULLBS_BIO_OP;
+		memcpy(nullbs_shared_region, bio, sizeof(struct bio));
+		CALL_NULLB_SPLIT_DOMAIN;
+		enum req_op bio_op_rv = *((enum req_op*)nullbs_return_value);
+	#else
+		enum req_op bio_op_rv = bio_op(bio);
+	#endif
 		err = null_transfer(nullb, bvec.bv_page, len, bvec.bv_offset,
-				     op_is_write(bio_op(bio)), sector,
+				     op_is_write(bio_op_rv), sector,
 				     bio->bi_opf & REQ_FUA);
 		if (err) {
 			spin_unlock_irq(&nullb->lock);
@@ -1365,7 +1387,15 @@ static void nullb_zero_read_cmd_buffer(struct nullb_cmd *cmd)
 	if (dev->memory_backed)
 		return;
 
-	if (dev->queue_mode == NULL_Q_BIO && bio_op(cmd->bio) == REQ_OP_READ) {
+#ifdef __NULLB_SPLIT_ENABLED__
+	*nullbs_fuction_code = NULLBS_BIO_OP;
+	memcpy(nullbs_shared_region, cmd->bio, sizeof(struct bio));
+	CALL_NULLB_SPLIT_DOMAIN;
+	enum req_op bio_op_rv = *((enum req_op*)nullbs_return_value);
+#else
+	enum req_op bio_op_rv = bio_op(cmd->bio);
+#endif
+	if (dev->queue_mode == NULL_Q_BIO && bio_op_rv == REQ_OP_READ) {
 		zero_fill_bio(cmd->bio);
 	} else if (req_op(cmd->rq) == REQ_OP_READ) {
 		__rq_for_each_bio(bio, cmd->rq)
@@ -1502,9 +1532,24 @@ static void null_submit_bio(struct bio *bio)
 	sector_t sector = bio->bi_iter.bi_sector;
 	sector_t nr_sectors = bio_sectors(bio);
 	struct nullb *nullb = bio->bi_bdev->bd_disk->private_data;
+#ifdef __NULLB_SPLIT_ENABLED__
+	*nullbs_fuction_code = NULLBS_NULLB_TO_QUEUE;
+	memcpy(nullbs_shared_region, nullb, sizeof(struct nullb));
+	CALL_NULLB_SPLIT_DOMAIN;
+	struct nullb_queue *nq = *((struct nullb_queue **)nullbs_return_value);
+#else
 	struct nullb_queue *nq = nullb_to_queue(nullb);
+#endif
 
-	null_handle_cmd(alloc_cmd(nq, bio), sector, nr_sectors, bio_op(bio));
+#ifdef __NULLB_SPLIT_ENABLED__
+	*nullbs_fuction_code = NULLBS_BIO_OP;
+	memcpy(nullbs_shared_region, bio, sizeof(struct bio));
+	CALL_NULLB_SPLIT_DOMAIN;
+	enum req_op bio_op_rv = *((enum req_op*)nullbs_return_value);
+#else
+	enum req_op bio_op_rv = bio_op(bio);
+#endif
+	null_handle_cmd(alloc_cmd(nq, bio), sector, nr_sectors, bio_op_rv);
 }
 
 static bool should_timeout_request(struct request *rq)
@@ -2015,7 +2060,15 @@ static int null_add_dev(struct nullb_device *dev)
 	struct nullb *nullb;
 	int rv; // return value
 
+#ifdef __NULLB_SPLIT_ENABLED__
+	*nullbs_fuction_code = NULLBS_NULL_VALIDATE_CONF;
+	memcpy(nullbs_shared_region, dev, sizeof(struct nullb_device));
+	CALL_NULLB_SPLIT_DOMAIN;
+	rv = *((int *)nullbs_return_value);
+#else
 	rv = null_validate_conf(dev);
+#endif
+
 	if (rv)
 		return rv;
 
@@ -2197,6 +2250,25 @@ static int __init null_init(void)
 	unsigned int i;
 	struct nullb *nullb;
 
+	/* initialize shared region pointers*/
+	struct sbiret sbi_res = sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_QUERY,
+			/* region_id = */ REGION_FUC_CODE,
+			/* field = */ CAPSTONE_REGION_FIELD_BASE,
+			0, 0, 0, 0);
+	nullbs_fuction_code = (function_code_t *)sbi_res.value;
+
+	sbi_res = sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_QUERY,
+			/* region_id = */ REGION_RET_VAL,
+			/* field = */ CAPSTONE_REGION_FIELD_BASE,
+			0, 0, 0, 0);
+	nullbs_return_value = (char *)sbi_res.value;
+	
+	sbi_res = sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_QUERY,
+			/* region_id = */ REGION_SHARED_DATA,
+			/* field = */ CAPSTONE_REGION_FIELD_BASE,
+			0, 0, 0, 0);
+	nullbs_shared_region = (char *)sbi_res.value;
+
 	/*check module paramters*/
 	if (g_bs > PAGE_SIZE) {
 		pr_warn("invalid block size\n");
@@ -2301,5 +2373,5 @@ static void __exit null_exit(void)
 module_init(null_init);
 module_exit(null_exit);
 
-MODULE_AUTHOR("Jens Axboe <axboe@kernel.dk>");
+MODULE_AUTHOR("Jens Axboe <axboe@kernel.dk>, The Capstone Team <https://capstone.kisp-lab.org/>");
 MODULE_LICENSE("GPL");

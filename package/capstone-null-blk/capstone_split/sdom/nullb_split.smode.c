@@ -1,8 +1,9 @@
 #include "nullb_split.smode.h"
 
 static char stack[4096];
-static char *nullbs_shared_region;
+static function_code_t *nullbs_fuction_code;
 static char *nullbs_return_value;
+static char *nullbs_shared_region;
 
 static void nullbs_null_validate_conf(void)
 {
@@ -92,7 +93,8 @@ static void main() {
 			/* region_id = */ REGION_FUC_CODE,
 			/* field = */ CAPSTONE_REGION_FIELD_BASE,
 			0, 0, 0, 0);
-		function_code_t function_code = sbi_res.value;
+		nullbs_fuction_code = (function_code_t *)sbi_res.value;
+		function_code_t function_code = *nullbs_fuction_code;
 
 		// nullbs_return_value
 		sbi_res = sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_QUERY,
