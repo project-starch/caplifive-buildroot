@@ -1,6 +1,9 @@
+#include <linux/module.h>
+#include <linux/init.h>
+#include <linux/kernel.h>
 #include "nullb_split.smode.h"
 
-static char stack[4096];
+// static char stack[4096];
 static function_code_t *nullbs_fuction_code;
 static char *nullbs_return_value;
 static char *nullbs_shared_region;
@@ -84,7 +87,7 @@ static void nullbs_end_cmd_bio(void)
 	return;
 }
 
-static void main() {
+static void main(void) {
 	while(1) {
 		unsigned long rv = 0;
 
@@ -128,12 +131,29 @@ static void main() {
                 break;
         }
         
-		struct sbiret _ = sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_DOM_RETURN,
+		sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_DOM_RETURN,
 			rv, 0, 0, 0, 0, 0);
 	}
 }
 
-__attribute__((naked)) void _start() {
-    __asm__ volatile ("mv sp, %0" :: "r"(stack + 4096));
-	__asm__ volatile ("j main");
+// __attribute__((naked)) void _start() {
+//     __asm__ volatile ("mv sp, %0" :: "r"(stack + 4096));
+// 	__asm__ volatile ("j main");
+// }
+
+static int __init nullb_split_init(void)
+{
+	main();
+
+	return 0;
 }
+
+static void __exit nullb_split_exit(void)
+{
+	return;
+}
+
+module_init(nullb_split_init);
+module_exit(nullb_split_exit);
+
+MODULE_LICENSE("GPL");

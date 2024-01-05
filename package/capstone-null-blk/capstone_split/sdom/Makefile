@@ -1,3 +1,4 @@
+obj-m += nullb_split.smode.o
 ccflags-y := -Wno-declaration-after-statement -std=gnu99
 
 .PHONY: all clean
