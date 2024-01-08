@@ -13,6 +13,9 @@ int main() {
     print_nobuf("Domain created with ID %lu\n", dom_id);
     print_nobuf("To schedule domain\n");
     schedule_dom(dom_id);
+    print_nobuf("Returned\n");
+    schedule_dom(dom_id);
+    print_nobuf("Returned (2nd time)\n");
 
     capstone_cleanup();
 
