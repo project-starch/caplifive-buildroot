@@ -259,3 +259,9 @@ void probe_regions(void) {
 int region_count(void) {
     return region_n;
 }
+
+void schedule_dom(dom_id_t dom_id) {
+    struct ioctl_dom_sched_args args;
+    args.dom_id = dom_id;
+    ioctl(dev_fd, IOCTL_DOM_SCHEDULE, (unsigned long)&args);
+}

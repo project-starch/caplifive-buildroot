@@ -46,11 +46,17 @@ struct ioctl_region_query_args {
     size_t len;
 };
 
+struct ioctl_dom_sched_args {
+    dom_id_t dom_id;
+    // TODO: more?
+};
+
 #define IOCTL_DOM_CREATE			_IOWR(IOC_MAGIC, 0, struct ioctl_dom_create_args)
 #define IOCTL_DOM_CALL  			_IOWR(IOC_MAGIC, 1, struct ioctl_dom_call_args)
 #define IOCTL_REGION_CREATE         _IOWR(IOC_MAGIC, 2, struct ioctl_region_create_args)
 #define IOCTL_REGION_SHARE          _IOWR(IOC_MAGIC, 3, struct ioctl_region_share_args)
 #define IOCTL_REGION_QUERY          _IOWR(IOC_MAGIC, 4, struct ioctl_region_query_args)
 #define IOCTL_REGION_PROBE          _IO(IOC_MAGIC, 5)
+#define IOCTL_DOM_SCHEDULE          _IOWR(IOC_MAGIC, 6, struct ioctl_dom_sched_args)
 
 #endif
