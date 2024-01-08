@@ -238,6 +238,14 @@ static void ioctl_region_query(struct ioctl_region_query_args* __user args) {
 	copy_to_user(args, &m_args, sizeof(struct ioctl_region_query_args));
 }
 
+static void ioctl_schedule_dom(struct ioctl_dom_sched_args* __user args) {
+	struct ioctl_dom_sched_args m_args;
+	copy_from_user(&m_args, args, sizeof(struct ioctl_dom_sched_args));
+
+	struct sbiret sbi_res = sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_DOM_SCHEDULE,
+		m_args.dom_id, 0, 0, 0, 0, 0);
+}
+
 static long device_ioctl(struct file* file,
 					     unsigned int ioctl_num,
 						 unsigned long ioctl_param)
@@ -260,6 +268,9 @@ static long device_ioctl(struct file* file,
 			break;
 		case IOCTL_REGION_PROBE:
 			probe_regions();
+			break;
+		case IOCTL_DOM_SCHEDULE:
+			ioctl_schedule_dom((struct ioctl_dom_sched_args* __user)ioctl_param);
 			break;
 		default:
 			pr_info("Unrecognised IOCTL command %u\n", ioctl_num);

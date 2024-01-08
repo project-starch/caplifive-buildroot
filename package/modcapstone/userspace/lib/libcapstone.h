@@ -14,5 +14,6 @@ void share_region(dom_id_t dom_id, region_id_t region_id);
 void *map_region(region_id_t region_id, unsigned long len);
 void probe_regions(void);
 int region_count(void);
+void schedule_dom(dom_id_t dom_id);
 
 #endif
