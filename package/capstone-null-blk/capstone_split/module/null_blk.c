@@ -2252,22 +2252,25 @@ static int __init null_init(void)
 
 	/* initialize shared region pointers*/
 	struct sbiret sbi_res = sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_QUERY,
-			/* region_id = */ REGION_FUC_CODE,
+			/* region_id = */ REGION_FUNC_CODE,
 			/* field = */ CAPSTONE_REGION_FIELD_BASE,
 			0, 0, 0, 0);
 	nullbs_fuction_code = (function_code_t *)sbi_res.value;
+	printk("nullbs_fuction_code: %p\n", nullbs_fuction_code);
 
 	sbi_res = sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_QUERY,
 			/* region_id = */ REGION_RET_VAL,
 			/* field = */ CAPSTONE_REGION_FIELD_BASE,
 			0, 0, 0, 0);
 	nullbs_return_value = (char *)sbi_res.value;
+	printk("nullbs_return_value: %p\n", nullbs_return_value);
 	
 	sbi_res = sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_QUERY,
 			/* region_id = */ REGION_SHARED_DATA,
 			/* field = */ CAPSTONE_REGION_FIELD_BASE,
 			0, 0, 0, 0);
 	nullbs_shared_region = (char *)sbi_res.value;
+	printk("nullbs_shared_region: %p\n", nullbs_shared_region);
 
 	/*check module paramters*/
 	if (g_bs > PAGE_SIZE) {

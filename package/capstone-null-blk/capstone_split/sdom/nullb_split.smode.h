@@ -3,13 +3,9 @@
 
 /*domain*/
 #define NULLBS_NULL_VALIDATE_CONF 0x0
-#define NULLBS_NULLB_TO_QUEUE 0x4
-#define NULLBS_BIO_OP 0x6
-#define NULLBS_END_CMD_BIO 0x8
-
-#define REGION_FUC_CODE 0x0
-#define REGION_RET_VAL 0x1
-#define REGION_SHARED_DATA 0x2
+#define NULLBS_NULLB_TO_QUEUE 0x1
+#define NULLBS_BIO_OP 0x2
+#define NULLBS_END_CMD_BIO 0x3
 
 typedef unsigned long dom_id_t;
 typedef unsigned long region_id_t;
@@ -44,6 +40,8 @@ enum nullb_device_flags {
 #define SBI_EXT_CAPSTONE_REGION_SHARE    0x4
 #define SBI_EXT_CAPSTONE_DOM_RETURN      0x5
 #define SBI_EXT_CAPSTONE_REGION_QUERY    0x6
+#define SBI_EXT_CAPSTONE_DOM_SCHEDULE    0x7
+#define SBI_EXT_CAPSTONE_REGION_COUNT    0x8
 
 #define CAPSTONE_REGION_FIELD_BASE    0x0
 #define CAPSTONE_REGION_FIELD_END     0x1

@@ -92,9 +92,16 @@ static void main(void) {
 	while(1) {
 		unsigned long rv = 0;
 
+		struct sbiret sbi_res = sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_COUNT,
+			0, 0, 0, 0, 0, 0);
+		const unsigned long region_n = sbi_res.value;
+		unsigned long region_shared_data = region_n - 1;
+		unsigned long region_ret_val = region_n - 2;
+		unsigned long region_func_code = region_n - 3;
+
 		// function_code
-		struct sbiret sbi_res = sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_QUERY,
-			/* region_id = */ REGION_FUC_CODE,
+		sbi_res = sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_QUERY,
+			/* region_id = */ region_func_code,
 			/* field = */ CAPSTONE_REGION_FIELD_BASE,
 			0, 0, 0, 0);
 		nullbs_fuction_code = (function_code_t *)sbi_res.value;
@@ -102,14 +109,14 @@ static void main(void) {
 
 		// nullbs_return_value
 		sbi_res = sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_QUERY,
-			/* region_id = */ REGION_RET_VAL,
+			/* region_id = */ region_ret_val,
 			/* field = */ CAPSTONE_REGION_FIELD_BASE,
 			0, 0, 0, 0);
 		nullbs_return_value = (char *)sbi_res.value;
 
 		// nullbs_shared_region
 		sbi_res = sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_QUERY,
-			/* region_id = */ REGION_SHARED_DATA,
+			/* region_id = */ region_shared_data,
 			/* field = */ CAPSTONE_REGION_FIELD_BASE,
 			0, 0, 0, 0);
 		nullbs_shared_region = (char *)sbi_res.value;
