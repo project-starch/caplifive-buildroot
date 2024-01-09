@@ -9,11 +9,8 @@
 #define NULLBS_BIO_OP 0x2
 #define NULLBS_END_CMD_BIO 0x3
 
-/* indexing assumptions for simplicity*/
 #define DOMAIN_NULLB_SPLIT 0x0
-#define REGION_FUNC_CODE 0x4
-#define REGION_RET_VAL 0x6
-#define REGION_SHARED_DATA 0x8
+#define PRIME_REGION_ID 0x4
 
 typedef unsigned long dom_id_t;
 typedef unsigned long region_id_t;

@@ -2273,21 +2273,30 @@ static int __init null_init(void)
 
 	/* initialize shared region pointers*/
 	struct sbiret sbi_res = sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_QUERY,
-			/* region_id = */ REGION_FUNC_CODE,
+			/* region_id = */ PRIME_REGION_ID,
 			/* field = */ CAPSTONE_REGION_FIELD_BASE,
 			0, 0, 0, 0);
 	nullbs_fuction_code = (function_code_t *)(__va(sbi_res.value));
 	printk("nullbs_fuction_code: %p\n", nullbs_fuction_code);
 
+	region_id_t* prime_region = (region_id_t*)nullbs_fuction_code;
+	region_id_t region_ret_val;
+	region_id_t region_shared_data;
+
+	memcpy(&region_ret_val, prime_region, sizeof(region_id_t));
+	printk("region_ret_val: %d\n", region_ret_val);
+	memcpy(&region_shared_data, prime_region + 1, sizeof(region_id_t));
+	printk("region_shared_data: %d\n", region_shared_data);
+
 	sbi_res = sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_QUERY,
-			/* region_id = */ REGION_RET_VAL,
+			/* region_id = */ region_ret_val,
 			/* field = */ CAPSTONE_REGION_FIELD_BASE,
 			0, 0, 0, 0);
 	nullbs_return_value = (char *)(__va(sbi_res.value));
 	printk("nullbs_return_value: %p\n", nullbs_return_value);
 	
 	sbi_res = sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_QUERY,
-			/* region_id = */ REGION_SHARED_DATA,
+			/* region_id = */ region_shared_data,
 			/* field = */ CAPSTONE_REGION_FIELD_BASE,
 			0, 0, 0, 0);
 	nullbs_shared_region = (char *)(__va(sbi_res.value));
