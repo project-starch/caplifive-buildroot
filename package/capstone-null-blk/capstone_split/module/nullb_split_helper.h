@@ -9,9 +9,6 @@
 #define NULLBS_BIO_OP 0x2
 #define NULLBS_END_CMD_BIO 0x3
 
-#define CALL_NULLB_SPLIT_DOMAIN sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_DOM_CALL, \
-				DOMAIN_NULLB_SPLIT, 0, 0, 0, 0, 0)
-
 /* indexing assumptions for simplicity*/
 #define DOMAIN_NULLB_SPLIT 0x0
 #define REGION_FUNC_CODE 0x4
@@ -69,5 +66,8 @@ static struct sbiret sbi_ecall(int ext, int fid, unsigned long arg0,
 
 	return ret;
 }
+
+#define CALL_NULLB_SPLIT_DOMAIN sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_DOM_CALL, \
+				DOMAIN_NULLB_SPLIT, 0, 0, 0, 0, 0)
 
 #endif /* __NULLB_SPLIT_HELPER_H */

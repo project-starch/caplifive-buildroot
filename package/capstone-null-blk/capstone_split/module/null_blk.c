@@ -787,11 +787,14 @@ static void end_cmd(struct nullb_cmd *cmd)
 		return;
 	case NULL_Q_BIO:
 	#ifdef __NULLB_SPLIT_ENABLED__
+		printk(KERN_INFO "enter domain: end_cmd_bio\n");
 		*nullbs_fuction_code = NULLBS_END_CMD_BIO;
 		memcpy(nullbs_shared_region, cmd, sizeof(struct nullb_cmd));
 		memcpy(nullbs_shared_region + sizeof(struct nullb_cmd), cmd->bio, sizeof(struct bio));
 		CALL_NULLB_SPLIT_DOMAIN;
 		memcpy(cmd->bio, nullbs_shared_region + sizeof(struct nullb_cmd), sizeof(struct bio));
+		printk(KERN_INFO "end_cmd_bio: cmd->bio->bi_status = %d\n", cmd->bio->bi_status);
+		printk(KERN_INFO "exit domain: end_cmd_bio\n");
 	#else
 		cmd->bio->bi_status = cmd->error;
 	#endif
@@ -1289,10 +1292,13 @@ static int null_handle_bio(struct nullb_cmd *cmd)
 	bio_for_each_segment(bvec, bio, iter) {
 		len = bvec.bv_len;
 	#ifdef __NULLB_SPLIT_ENABLED__
+		printk(KERN_INFO "enter domain: bio_op\n");
 		*nullbs_fuction_code = NULLBS_BIO_OP;
 		memcpy(nullbs_shared_region, bio, sizeof(struct bio));
 		CALL_NULLB_SPLIT_DOMAIN;
 		enum req_op bio_op_rv = *((enum req_op*)nullbs_return_value);
+		printk(KERN_INFO "bio_op: bio_op_rv = %d\n", bio_op_rv);
+		printk(KERN_INFO "exit domain: bio_op\n");
 	#else
 		enum req_op bio_op_rv = bio_op(bio);
 	#endif
@@ -1388,10 +1394,13 @@ static void nullb_zero_read_cmd_buffer(struct nullb_cmd *cmd)
 		return;
 
 #ifdef __NULLB_SPLIT_ENABLED__
+	printk(KERN_INFO "enter domain: bio_op\n");
 	*nullbs_fuction_code = NULLBS_BIO_OP;
 	memcpy(nullbs_shared_region, cmd->bio, sizeof(struct bio));
 	CALL_NULLB_SPLIT_DOMAIN;
 	enum req_op bio_op_rv = *((enum req_op*)nullbs_return_value);
+	printk(KERN_INFO "bio_op: bio_op_rv = %d\n", bio_op_rv);
+	printk(KERN_INFO "exit domain: bio_op\n");
 #else
 	enum req_op bio_op_rv = bio_op(cmd->bio);
 #endif
@@ -1533,19 +1542,25 @@ static void null_submit_bio(struct bio *bio)
 	sector_t nr_sectors = bio_sectors(bio);
 	struct nullb *nullb = bio->bi_bdev->bd_disk->private_data;
 #ifdef __NULLB_SPLIT_ENABLED__
+	printk(KERN_INFO "enter domain: nullb_to_queue\n");
 	*nullbs_fuction_code = NULLBS_NULLB_TO_QUEUE;
 	memcpy(nullbs_shared_region, nullb, sizeof(struct nullb));
 	CALL_NULLB_SPLIT_DOMAIN;
 	struct nullb_queue *nq = *((struct nullb_queue **)nullbs_return_value);
+	printk(KERN_INFO "nullb_to_queue: nq = %p\n", nq);
+	printk(KERN_INFO "exit domain: nullb_to_queue\n");
 #else
 	struct nullb_queue *nq = nullb_to_queue(nullb);
 #endif
 
 #ifdef __NULLB_SPLIT_ENABLED__
+	printk(KERN_INFO "enter domain: bio_op\n");
 	*nullbs_fuction_code = NULLBS_BIO_OP;
 	memcpy(nullbs_shared_region, bio, sizeof(struct bio));
 	CALL_NULLB_SPLIT_DOMAIN;
 	enum req_op bio_op_rv = *((enum req_op*)nullbs_return_value);
+	printk(KERN_INFO "bio_op: bio_op_rv = %p\n", bio_op_rv);
+	printk(KERN_INFO "exit domain: bio_op\n");
 #else
 	enum req_op bio_op_rv = bio_op(bio);
 #endif
@@ -2061,10 +2076,16 @@ static int null_add_dev(struct nullb_device *dev)
 	int rv; // return value
 
 #ifdef __NULLB_SPLIT_ENABLED__
-	*nullbs_fuction_code = NULLBS_NULL_VALIDATE_CONF;
+	printk(KERN_INFO "enter domain: null_validate_conf\n");
+	function_code_t function_code = NULLBS_NULL_VALIDATE_CONF;
+	printk(KERN_INFO "null_validate_conf: nullbs_fuction_code = %p\n", nullbs_fuction_code);
+	printk(KERN_INFO "null_validate_conf: &function_code = %p\n", &function_code);
+	*nullbs_fuction_code = function_code;
 	memcpy(nullbs_shared_region, dev, sizeof(struct nullb_device));
 	CALL_NULLB_SPLIT_DOMAIN;
 	rv = *((int *)nullbs_return_value);
+	printk(KERN_INFO "null_validate_conf: rv = %d\n", rv);
+	printk(KERN_INFO "exit domain: null_validate_conf\n");
 #else
 	rv = null_validate_conf(dev);
 #endif
@@ -2255,21 +2276,21 @@ static int __init null_init(void)
 			/* region_id = */ REGION_FUNC_CODE,
 			/* field = */ CAPSTONE_REGION_FIELD_BASE,
 			0, 0, 0, 0);
-	nullbs_fuction_code = (function_code_t *)sbi_res.value;
+	nullbs_fuction_code = (function_code_t *)(__va(sbi_res.value));
 	printk("nullbs_fuction_code: %p\n", nullbs_fuction_code);
 
 	sbi_res = sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_QUERY,
 			/* region_id = */ REGION_RET_VAL,
 			/* field = */ CAPSTONE_REGION_FIELD_BASE,
 			0, 0, 0, 0);
-	nullbs_return_value = (char *)sbi_res.value;
+	nullbs_return_value = (char *)(__va(sbi_res.value));
 	printk("nullbs_return_value: %p\n", nullbs_return_value);
 	
 	sbi_res = sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_QUERY,
 			/* region_id = */ REGION_SHARED_DATA,
 			/* field = */ CAPSTONE_REGION_FIELD_BASE,
 			0, 0, 0, 0);
-	nullbs_shared_region = (char *)sbi_res.value;
+	nullbs_shared_region = (char *)(__va(sbi_res.value));
 	printk("nullbs_shared_region: %p\n", nullbs_shared_region);
 
 	/*check module paramters*/
