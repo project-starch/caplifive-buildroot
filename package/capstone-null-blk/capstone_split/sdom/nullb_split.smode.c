@@ -3,7 +3,8 @@
 #include <linux/kernel.h>
 #include "nullb_split.smode.h"
 
-// static char stack[4096];
+static char stack[4096];
+
 static function_code_t *nullbs_fuction_code;
 static char *nullbs_return_value;
 static char *nullbs_shared_region;
@@ -137,12 +138,13 @@ static void main(void) {
 }
 
 // __attribute__((naked)) void _start() {
-//     __asm__ volatile ("mv sp, %0" :: "r"(stack + 4096));
+// 	__asm__ volatile ("mv sp, %0" :: "r"(stack + 4096));
 // 	__asm__ volatile ("j main");
 // }
 
-static int __init nullb_split_init(void)
+static __attribute__((naked)) int __init nullb_split_init(void)
 {
+	__asm__ volatile ("mv sp, %0" :: "r"(stack + 4096));
 	main();
 
 	return 0;

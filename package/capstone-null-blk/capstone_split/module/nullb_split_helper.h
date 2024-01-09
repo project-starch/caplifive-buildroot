@@ -5,15 +5,15 @@
 
 /*dpi*/
 #define NULLBS_NULL_VALIDATE_CONF 0x0
-#define NULLBS_NULLB_TO_QUEUE 0x1
-#define NULLBS_BIO_OP 0x2
-#define NULLBS_END_CMD_BIO 0x3
+#define NULLBS_NULLB_TO_QUEUE 0x4
+#define NULLBS_BIO_OP 0x6
+#define NULLBS_END_CMD_BIO 0x8
 
 #define CALL_NULLB_SPLIT_DOMAIN sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_DOM_CALL, \
 				DOMAIN_NULLB_SPLIT, 0, 0, 0, 0, 0)
 
 /* indexing assumptions for simplicity*/
-#define DOMAIN_NULLB_SPLIT 0x1
+#define DOMAIN_NULLB_SPLIT 0x0
 #define REGION_FUC_CODE 0x0
 #define REGION_RET_VAL 0x1
 #define REGION_SHARED_DATA 0x2

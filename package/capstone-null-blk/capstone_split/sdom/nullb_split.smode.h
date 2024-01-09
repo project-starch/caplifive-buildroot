@@ -3,9 +3,9 @@
 
 /*domain*/
 #define NULLBS_NULL_VALIDATE_CONF 0x0
-#define NULLBS_NULLB_TO_QUEUE 0x1
-#define NULLBS_BIO_OP 0x2
-#define NULLBS_END_CMD_BIO 0x3
+#define NULLBS_NULLB_TO_QUEUE 0x4
+#define NULLBS_BIO_OP 0x6
+#define NULLBS_END_CMD_BIO 0x8
 
 #define REGION_FUC_CODE 0x0
 #define REGION_RET_VAL 0x1

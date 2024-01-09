@@ -10,7 +10,7 @@ int main() {
     capstone_init();
 
     /* domain id and region id indexing is by assumption for simplicity  */
-    dom_id_t dom_id = create_dom("/test-domains/sbi.dom", "/nullb/capstone_split/nullb_split.smode");
+    dom_id_t dom_id = create_dom_ko("/test-domains/sbi.dom", "/nullb/capstone_split/nullb_split.smode.ko");
     print_nobuf("SBI domain created with ID %lu\n", dom_id);
     region_id_t func_region_id = create_region(4096);
     print_nobuf("Shared region created with ID %lu\n", func_region_id);
