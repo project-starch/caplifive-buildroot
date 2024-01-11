@@ -1,0 +1,7 @@
+config BR2_PACKAGE_CAPSTONE_NESTED_ENCLAVE
+    bool "capstone_nested_enclave"
+    help
+        Nested enclave implemented with Captainer.
+
+        https://capstone.kisp-lab.org/
+
