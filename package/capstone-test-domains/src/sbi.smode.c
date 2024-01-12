@@ -52,11 +52,16 @@ static struct sbiret sbi_ecall(int ext, int fid, unsigned long arg0,
 	return ret;
 }
 
+static void main() {
+	while(1) {
+		int r = fibonacci(10);
+		struct sbiret _ = sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_DOM_RETURN,
+			r, 0, 0, 0, 0, 0);
+	}
+}
 
 __attribute__((naked)) void _start() {
     __asm__ volatile ("mv sp, %0" :: "r"(stack + 4096)); // setup stack
-    int r = fibonacci(10);
-    struct sbiret _ = sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_DOM_RETURN,
-        r, 0, 0, 0, 0, 0);
-    while(1); // should not reach here
+	__asm__ volatile ("j main");
+	while(1); // should not reach here
 }
