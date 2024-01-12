@@ -19,7 +19,7 @@
 
 static unsigned *g_shared_region;
 
-__domentry __domreentry void mem(__domret void *ra, unsigned action, unsigned *res)
+__domentry __domreentry void dpdk_client1(__domret void *ra, unsigned action, unsigned *res)
 {
     unsigned i = 0;
 
@@ -68,7 +68,7 @@ __domentry __domreentry void mem(__domret void *ra, unsigned action, unsigned *r
              * Return the number of consumed values so the serve knows if more domains calls are needed
             */
             *res = vars_nr;
-            __domreturn(ra, __mem_reentry, 0);
+            __domreturn(ra, __dpdk_client1_reentry, 0);
         }
         if (op == SERVER_GET) {
             /**
@@ -94,9 +94,9 @@ __domentry __domreentry void mem(__domret void *ra, unsigned action, unsigned *r
             // *g_shared_region = ACK;
             g_shared_region[0] = ACK;
             *res = PROD_NUMBER;
-            __domreturn(ra, __mem_reentry, 0);
+            __domreturn(ra, __dpdk_client1_reentry, 0);
         }
     }
 
-    __domreturn(ra, __mem_reentry, 0);
+    __domreturn(ra, __dpdk_client1_reentry, 0);
 }
