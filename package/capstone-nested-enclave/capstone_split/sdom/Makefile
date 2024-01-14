@@ -1,4 +1,4 @@
-obj-m += miniweb_backend.o
+obj-m += miniweb_backend.smode.o
 ccflags-y := -Wno-declaration-after-statement -std=gnu99
 
 .PHONY: all clean
