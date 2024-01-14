@@ -10,7 +10,7 @@
 #include "lib/libcapstone.h"
 
 #define QUEUE_SIZE 16
-#define THREAD_SIZE 1
+#define THREAD_SIZE 1 // 1 thread for now
 #define CONNECTION_NUM 3
 #define print_nobuf(...) do { printf(__VA_ARGS__); fflush(stdout); } while(0)
 
@@ -67,11 +67,15 @@ void* workerThread(void *arg) {
     int fd = dequeue(q);
 
     // read from socket
-    char* ptr = socket_fd_region_base;
-    int read_size_sockert_fd = read(fd, ptr, 4096);
-    print_nobuf("read_size_sockert_fd: %d\n", read_size_sockert_fd);
+    // socket_fd_region: (unsigned long) socket_fd_len, (char*) content (socket file content)
+    unsigned long read_size_socket_fd;
+    char* ptr = socket_fd_region_base + sizeof(read_size_socket_fd);
+    read_size_socket_fd = read(fd, ptr, 4096 - sizeof(read_size_socket_fd));
+    memcpy(socket_fd_region_base, &read_size_socket_fd, sizeof(read_size_socket_fd));
+    print_nobuf("read_size_socket_fd: %d\n", read_size_socket_fd);
 
     // provide html file accordingly
+    // html_fd_region: (int) html_fd_status, (unsigned long) html_fd_len, (char*) content (path or file content)
     int html_fd_status = HTML_FD_UNDEFINED;
     memcpy(html_fd_region_base, &html_fd_status, sizeof(html_fd_status));
     call_dom(dom_id);
@@ -92,11 +96,18 @@ void* workerThread(void *arg) {
         }
         else {
             ptr = html_fd_region_base + sizeof(html_fd_status) + sizeof(html_fd_len);
-            int read_size_html_fd = read(html_fd, ptr, 4096);
+            unsigned long read_size_html_fd = read(html_fd, ptr, 4096 - sizeof(html_fd_status) - sizeof(html_fd_len));
             memcpy(html_fd_region_base + sizeof(html_fd_status), &read_size_html_fd, sizeof(read_size_html_fd));
             print_nobuf("read_size_html_fd: %d\n", read_size_html_fd);
+
             call_dom(dom_id);
+            // sync socket_fd_region to socket fd
+            unsigned long socket_fd_region_len;
+            memcpy(&socket_fd_region_len, socket_fd_region_base, sizeof(socket_fd_region_len));
+            ptr = socket_fd_region_base + sizeof(socket_fd_region_len);
+            write(fd, ptr, socket_fd_region_len);
         }
+        close(html_fd);
     }
     else {
         char error_path[] = "/nested/capstone_split/404Response.txt";
@@ -106,11 +117,18 @@ void* workerThread(void *arg) {
         }
         else {
             ptr = html_fd_region_base + sizeof(html_fd_status);
-            int read_size_html_fd = read(error_fd, ptr, 4096);
+            unsigned long read_size_html_fd = read(error_fd, ptr, 4096 - sizeof(html_fd_status));
             memcpy(html_fd_region_base + sizeof(html_fd_status), &read_size_html_fd, sizeof(read_size_html_fd));
             print_nobuf("read_size_html_fd: %d\n", read_size_html_fd);
+
             call_dom(dom_id);
+            // sync socket_fd_region to socket fd
+            unsigned long socket_fd_region_len;
+            memcpy(&socket_fd_region_len, socket_fd_region_base, sizeof(socket_fd_region_len));
+            ptr = socket_fd_region_base + sizeof(socket_fd_region_len);
+            write(fd, ptr, socket_fd_region_len);
         }
+        close(error_fd);
     }
   } // end while
   return NULL;
@@ -131,16 +149,38 @@ int main() {
     // control: path of the html file, used between miniweb_frontend.user and miniweb_backend.smode.ko
     region_id_t html_fd_region = create_region(4096);
     print_nobuf("Shared region created with ID %lu\n", html_fd_region);
-    // used between miniweb_backend.smode.ko and cgis, no need for mapping
-    region_id_t environ_region = create_region(4096);
-    print_nobuf("Shared region created with ID %lu\n", environ_region);
+    // cgi_success_region
+    region_id_t cgi_success_region = create_region(4096);
+    print_nobuf("Shared region created with ID %lu\n", cgi_success_region);
+    // cgi_fail_region is not tested for now
+    // region_id_t cgi_fail_region = create_region(4096);
+    // print_nobuf("Shared region created with ID %lu\n", cgi_fail_region);
 
     socket_fd_region_base = map_region(socket_fd_region, 4096);
     html_fd_region_base = map_region(html_fd_region, 4096);
 
+    // cgi content set up
+    char* cgi_success_region_base = map_region(cgi_success_region, 4096);
+
+    char cgi_success_path[] = "/nested/capstone_split/cgi/cgi_register_success.dom";
+    int cgi_success_fd = open(cgi_success_path, O_RDONLY);
+    if (cgi_success_fd == -1) {
+        print_nobuf("Couldn't open cgi_register_success.dom\n");
+    }
+    else {
+        unsigned long read_size_cgi_success;
+        char* ptr = cgi_success_region_base + sizeof(read_size_cgi_success);
+        read_size_cgi_success = read(cgi_success_fd, ptr, 4096 - sizeof(read_size_cgi_success));
+        memcpy(cgi_success_region_base, &read_size_cgi_success, sizeof(read_size_cgi_success));
+        print_nobuf("read_size_cgi_success: %d\n", read_size_cgi_success);
+    }
+    close(cgi_success_fd);
+
+    /* share regions */
     share_region(dom_id, socket_fd_region);
     share_region(dom_id, html_fd_region);
-    share_region(dom_id, environ_region);
+    share_region(dom_id, cgi_success_region);
+    // share_region(dom_id, cgi_fail_region);
 
     /* socket setup */
     queue* q = queueCreate();
@@ -150,7 +190,7 @@ int main() {
         pthread_create(&threads[i], NULL, workerThread, (void *) q);
     }
 
-    int server_socket = socket(AF_INET , SOCK_STREAM , 0);
+    int server_socket = socket(AF_INET, SOCK_STREAM, 0);
     if (server_socket == -1) {
         print_nobuf("Could not create socket.\n");
         return 1;
@@ -163,9 +203,9 @@ int main() {
     struct sockaddr_in server;
     server.sin_family = AF_INET;
     server.sin_addr.s_addr = INADDR_ANY;
-    server.sin_port = htons( 8888 );
+    server.sin_port = htons(8888);
 
-    if(bind(server_socket,(struct sockaddr *)&server , sizeof(server)) < 0) {
+    if(bind(server_socket, (struct sockaddr *)&server, sizeof(server)) < 0) {
         print_nobuf("Bind failed.\n");
         return 1;
     }
@@ -179,7 +219,7 @@ int main() {
         int c = sizeof(struct sockaddr_in);
         int new_socket = accept(server_socket, (struct sockaddr *) &client, (socklen_t*)&c);
         if(new_socket != -1) {
-            enqueue(q,new_socket);
+            enqueue(q, new_socket);
         }
     }
 
