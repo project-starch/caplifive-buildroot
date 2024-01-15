@@ -33,6 +33,21 @@ static void read_line_from_socket(char *buf, int buf_size) {
 	socket_fd_region_ptr += i;
 }
 
+static void request_handle_cgi(unsigned long register_success) {
+	unsigned long html_fd_status = HTML_FD_CGI;
+
+	if (register_success == 1) {
+		// TODO: domain creation and call
+	}
+	else if (register_success == 0) {
+		// TODO: domain creation and call
+	}
+	else {
+		html_fd_status = HTML_FD_404RESPONSE;
+	}
+	memcpy(html_fd_region_base, &html_fd_status, sizeof(html_fd_status));
+}
+
 static void handle_404_preprocessing(void) {
 	unsigned long html_fd_status = HTML_FD_404RESPONSE;
 	memcpy(html_fd_region_base, &html_fd_status, sizeof(html_fd_status));
@@ -42,7 +57,7 @@ static void request_reprocessing(void) {
 	char lineBuffer[256];
 
 	socket_fd_region_ptr = socket_fd_region_base + sizeof(unsigned long);
-	read_line_from_region(lineBuffer, 256);
+	read_line_from_socket(lineBuffer, 256);
 	char method[16];
 	char url[128];
 	
@@ -114,21 +129,6 @@ static void request_handle_200(void) {
 	memcpy(socket_fd_region_base, &socket_fd_len, sizeof(socket_fd_len));
 	memcpy(socket_fd_region_base + sizeof(socket_fd_len), buffer, buffer_size);
 	memcpy(socket_fd_region_base + sizeof(socket_fd_len) + buffer_size, html_fd_region_base + sizeof(unsigned long) + sizeof(html_fd_len), html_fd_len);
-}
-
-static void request_handle_cgi(unsigned long register_success) {
-	unsigned long html_fd_status = HTML_FD_CGI;
-
-	if (register_success == 1) {
-		// TODO: domain creation and call
-	}
-	else if (register_success == 0) {
-		// TODO: domain creation and call
-	}
-	else {
-		html_fd_status = HTML_FD_404RESPONSE;
-	}
-	memcpy(html_fd_region_base, &html_fd_status, sizeof(html_fd_status));
 }
 
 static void main(void) {
