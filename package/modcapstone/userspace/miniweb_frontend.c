@@ -15,8 +15,9 @@
 #define print_nobuf(...) do { printf(__VA_ARGS__); fflush(stdout); } while(0)
 
 #define HTML_FD_UNDEFINED 0
-#define HTML_FD_404RESPONSE -1
-#define HTML_FD_DEFINED 1
+#define HTML_FD_404RESPONSE 1
+#define HTML_FD_200RESPONSE 2
+#define HTML_FD_CGI 3
 
 dom_id_t dom_id;
 char *socket_fd_region_base, *html_fd_region_base;
@@ -76,22 +77,26 @@ void* workerThread(void *arg) {
 
     // provide html file accordingly
     // html_fd_region: (int) html_fd_status, (unsigned long) html_fd_len, (char*) content (path or file content)
-    int html_fd_status = HTML_FD_UNDEFINED;
+    unsigned long html_fd_status = HTML_FD_UNDEFINED;
     memcpy(html_fd_region_base, &html_fd_status, sizeof(html_fd_status));
     call_dom(dom_id);
     unsigned long html_fd_len; // also server as the path length
     memcpy(&html_fd_len, html_fd_region_base + sizeof(html_fd_status), sizeof(html_fd_len));
-    if (html_fd_len != HTML_FD_DEFINED) {
-        char* file_path = malloc(html_fd_len + 1);
-        memcpy(file_path, html_fd_region_base + sizeof(html_fd_status) + sizeof(html_fd_len), html_fd_len + 1);
-        char prefix[] = "/nested/capstone_split/www/";
-        char* html_path = malloc(strlen(prefix) + html_fd_len + 1);
+    
+    if (html_fd_status == HTML_FD_200RESPONSE) {
+        char* file_path = malloc(html_fd_len);
+        memcpy(file_path, html_fd_region_base + sizeof(html_fd_status) + sizeof(html_fd_len), html_fd_len);
+        char prefix[] = "/nested/capstone_split/www";
+        char* html_path = malloc(strlen(prefix) + html_fd_len);
         strcpy(html_path, prefix);
         strcat(html_path, file_path);
 
         // read html file
         int html_fd = open(html_path, O_RDONLY);
         if (html_fd == -1) {
+            // send 404 if file not found as well
+            html_fd_status = HTML_FD_404RESPONSE;
+            memcpy(html_fd_region_base, &html_fd_status, sizeof(html_fd_status));
             print_nobuf("Couldn't open html file\n");
         }
         else {
@@ -99,6 +104,7 @@ void* workerThread(void *arg) {
             unsigned long read_size_html_fd = read(html_fd, ptr, 4096 - sizeof(html_fd_status) - sizeof(html_fd_len));
             memcpy(html_fd_region_base + sizeof(html_fd_status), &read_size_html_fd, sizeof(read_size_html_fd));
             print_nobuf("read_size_html_fd: %d\n", read_size_html_fd);
+            close(html_fd);
 
             call_dom(dom_id);
             // sync socket_fd_region to socket fd
@@ -106,10 +112,12 @@ void* workerThread(void *arg) {
             memcpy(&socket_fd_region_len, socket_fd_region_base, sizeof(socket_fd_region_len));
             ptr = socket_fd_region_base + sizeof(socket_fd_region_len);
             write(fd, ptr, socket_fd_region_len);
+            close(fd);
         }
-        close(html_fd);
     }
-    else {
+
+    // 2 cases: 404 from backend or 404 due to file not found
+    if (html_fd_status == HTML_FD_404RESPONSE) {
         char error_path[] = "/nested/capstone_split/404Response.txt";
         int error_fd = open(error_path, O_RDONLY);
         if (error_fd == -1) {
@@ -120,6 +128,7 @@ void* workerThread(void *arg) {
             unsigned long read_size_html_fd = read(error_fd, ptr, 4096 - sizeof(html_fd_status));
             memcpy(html_fd_region_base + sizeof(html_fd_status), &read_size_html_fd, sizeof(read_size_html_fd));
             print_nobuf("read_size_html_fd: %d\n", read_size_html_fd);
+            close(error_fd);
 
             call_dom(dom_id);
             // sync socket_fd_region to socket fd
@@ -127,8 +136,16 @@ void* workerThread(void *arg) {
             memcpy(&socket_fd_region_len, socket_fd_region_base, sizeof(socket_fd_region_len));
             ptr = socket_fd_region_base + sizeof(socket_fd_region_len);
             write(fd, ptr, socket_fd_region_len);
+            close(fd);
         }
-        close(error_fd);
+    }
+    
+    if (html_fd_status == HTML_FD_CGI) {
+        print_nobuf("POST request is handled by CGI.\n");
+    }
+
+    if (html_fd_status == HTML_FD_UNDEFINED) {
+        print_nobuf("Server internal error.\n");
     }
   } // end while
   return NULL;
@@ -173,8 +190,8 @@ int main() {
         read_size_cgi_success = read(cgi_success_fd, ptr, 4096 - sizeof(read_size_cgi_success));
         memcpy(cgi_success_region_base, &read_size_cgi_success, sizeof(read_size_cgi_success));
         print_nobuf("read_size_cgi_success: %d\n", read_size_cgi_success);
+        close(cgi_success_fd);
     }
-    close(cgi_success_fd);
 
     /* share regions */
     share_region(dom_id, socket_fd_region);

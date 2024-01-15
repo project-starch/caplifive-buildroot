@@ -4,6 +4,12 @@
 typedef unsigned long dom_id_t;
 typedef unsigned long region_id_t;
 
+/* html_fd_status */
+#define HTML_FD_UNDEFINED 0
+#define HTML_FD_404RESPONSE 1
+#define HTML_FD_200RESPONSE 2
+#define HTML_FD_CGI 3
+
 /* sbi */
 #define SBI_EXT_CAPSTONE 0x12345678
 #define SBI_EXT_CAPSTONE_DOM_CREATE 0x0
