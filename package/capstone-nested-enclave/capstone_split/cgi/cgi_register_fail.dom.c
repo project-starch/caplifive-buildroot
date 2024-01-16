@@ -12,7 +12,7 @@
 #define SIZE_OF_ULL 8
 #define CONTENT_FIXED_SIZE 51
 
-#define PRINT(v) __asm__ volatile(".insn r 0x5b, 0x1, 0x43, x0, %0, x0" :: "r"(v))
+#define C_PRINT(v) __asm__ volatile(".insn r 0x5b, 0x1, 0x43, x0, %0, x0" :: "r"(v))
 
 void* shared_region;
 unsigned respose_size = 0;
@@ -31,7 +31,7 @@ unsigned handle_dpi(unsigned func, void *arg) {
     switch(func) {
         case CAPSTONE_DPI_CALL:
             dpi_call();
-            while(1); /* should not reach here */
+            break; // should return to cgi_entry in this case
         case CAPSTONE_DPI_REGION_SHARE:
             dpi_share_region(arg);
             handled = 1;
@@ -153,7 +153,7 @@ void register_fail(void) {
     putchar_to_socket(socket_region_ptr, ':');
     putchar_to_socket(socket_region_ptr, ' ');
 
-    for (unsigned j = 0; j < num_char_len; j++) {
+    for (unsigned j = 0; j < num_char_len; j += 1) {
         putchar_to_socket(socket_region_ptr, num_char[num_char_len - j - 1]);
     }
 
@@ -205,7 +205,7 @@ void register_fail(void) {
     putchar_to_socket(socket_region_ptr, ',');
     putchar_to_socket(socket_region_ptr, ' ');
 
-    for (unsigned j = 0; j < name_index; j++) {
+    for (unsigned j = 0; j < name_index; j += 1) {
         putchar_to_socket(socket_region_ptr, name[j]);
     }
 
