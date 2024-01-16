@@ -13,33 +13,10 @@
 #define CONTENT_FIXED_SIZE 58
 
 #define PRINT(v) __asm__ volatile(".insn r 0x5b, 0x1, 0x43, x0, %0, x0" :: "r"(v))
+#define C_PRINT PRINT
 
 void* shared_region;
 unsigned respose_size = 0;
-
-void dpi_call(void) {
-    register_fail();
-}
-
-void dpi_share_region(void *region) {
-    shared_region = region;
-}
-
-unsigned handle_dpi(unsigned func, void *arg) {
-    unsigned handled = 0;
-
-    switch(func) {
-        case CAPSTONE_DPI_CALL:
-            dpi_call();
-            while(1); /* should not reach here */
-        case CAPSTONE_DPI_REGION_SHARE:
-            dpi_share_region(arg);
-            handled = 1;
-            break;
-    }
-
-    return handled;
-}
 
 void putchar_to_socket(char* socket_region_ptr, char ch) {
     socket_region_ptr[respose_size] = ch;
@@ -47,10 +24,11 @@ void putchar_to_socket(char* socket_region_ptr, char ch) {
 }
 
 unsigned unsigned_to_char_reverse(unsigned num, char* num_char) {
-    unsigned i = 0;
+    unsigned i = 0, d;
     while (num != 0) {
-        num_char[i] = num % 10 + '0';
-        num /= 10;
+        d = num / 10;
+        num_char[i] = num - 10 * d + '0';
+        num = d;
         i += 1;
     }
     num_char[i] = '\0';
@@ -134,7 +112,7 @@ void register_fail(void) {
     putchar_to_socket(socket_region_ptr, ':');
     putchar_to_socket(socket_region_ptr, ' ');
 
-    for (unsigned j = 0; j < num_char_len; j++) {
+    for (unsigned j = 0; j < num_char_len; j += 1) {
         putchar_to_socket(socket_region_ptr, num_char[num_char_len - j - 1]);
     }
 
@@ -186,7 +164,7 @@ void register_fail(void) {
     putchar_to_socket(socket_region_ptr, ',');
     putchar_to_socket(socket_region_ptr, ' ');
 
-    for (unsigned j = 0; j < name_index; j++) {
+    for (unsigned j = 0; j < name_index; j += 1) {
         putchar_to_socket(socket_region_ptr, name[j]);
     }
 
@@ -232,6 +210,31 @@ void register_fail(void) {
 
     /* set the socket packet size */
     *((unsigned *)shared_region) = respose_size;
+}
+
+
+void dpi_call(void) {
+    register_fail();
+}
+
+void dpi_share_region(void *region) {
+    shared_region = region;
+}
+
+unsigned handle_dpi(unsigned func, void *arg) {
+    unsigned handled = 0;
+
+    switch(func) {
+        case CAPSTONE_DPI_CALL:
+            dpi_call();
+            while(1); /* should not reach here */
+        case CAPSTONE_DPI_REGION_SHARE:
+            dpi_share_region(arg);
+            handled = 1;
+            break;
+    }
+
+    return handled;
 }
 
 __domentry __domreentry void cgi_entry(__domret void *ra, unsigned func, unsigned *buf) {
