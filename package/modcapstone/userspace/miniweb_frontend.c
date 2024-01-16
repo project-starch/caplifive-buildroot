@@ -68,15 +68,15 @@ void* workerThread(void *arg) {
     int fd = dequeue(q);
 
     // read from socket
-    // socket_fd_region: (unsigned long) socket_fd_len, (char*) content (socket file content)
-    unsigned long read_size_socket_fd;
+    // socket_fd_region: (unsigned long long) socket_fd_len, (char*) content (socket file content)
+    unsigned long long read_size_socket_fd;
     char* ptr = socket_fd_region_base + sizeof(read_size_socket_fd);
     read_size_socket_fd = read(fd, ptr, 4096 - sizeof(read_size_socket_fd));
     memcpy(socket_fd_region_base, &read_size_socket_fd, sizeof(read_size_socket_fd));
-    print_nobuf("read_size_socket_fd: %d\n", read_size_socket_fd);
+    print_nobuf("read_size_socket_fd: %llu\n", read_size_socket_fd);
 
     // provide html file accordingly
-    // html_fd_region: (int) html_fd_status, (unsigned long) html_fd_len, (char*) content (path or file content)
+    // html_fd_region: (unsigned long) html_fd_status, (unsigned long) html_fd_len, (char*) content (path or file content)
     unsigned long html_fd_status = HTML_FD_UNDEFINED;
     memcpy(html_fd_region_base, &html_fd_status, sizeof(html_fd_status));
     call_dom(dom_id);
@@ -108,7 +108,7 @@ void* workerThread(void *arg) {
 
             call_dom(dom_id);
             // sync socket_fd_region to socket fd
-            unsigned long socket_fd_region_len;
+            unsigned long long socket_fd_region_len;
             memcpy(&socket_fd_region_len, socket_fd_region_base, sizeof(socket_fd_region_len));
             ptr = socket_fd_region_base + sizeof(socket_fd_region_len);
             write(fd, ptr, socket_fd_region_len);
@@ -132,7 +132,7 @@ void* workerThread(void *arg) {
 
             call_dom(dom_id);
             // sync socket_fd_region to socket fd
-            unsigned long socket_fd_region_len;
+            unsigned long long socket_fd_region_len;
             memcpy(&socket_fd_region_len, socket_fd_region_base, sizeof(socket_fd_region_len));
             ptr = socket_fd_region_base + sizeof(socket_fd_region_len);
             write(fd, ptr, socket_fd_region_len);
@@ -169,14 +169,16 @@ int main() {
     // cgi_success_region
     region_id_t cgi_success_region = create_region(4096);
     print_nobuf("Shared region created with ID %lu\n", cgi_success_region);
-    // cgi_fail_region is not tested for now
-    // region_id_t cgi_fail_region = create_region(4096);
-    // print_nobuf("Shared region created with ID %lu\n", cgi_fail_region);
+    // cgi_fail_region
+    region_id_t cgi_fail_region = create_region(4096);
+    print_nobuf("Shared region created with ID %lu\n", cgi_fail_region);
 
     socket_fd_region_base = map_region(socket_fd_region, 4096);
     html_fd_region_base = map_region(html_fd_region, 4096);
 
-    // cgi content set up
+    /* cgi content set up */ 
+    // no metadata is stored in cgi-related regions
+    // and the passing of the region is one-time, one-way only
     char* cgi_success_region_base = map_region(cgi_success_region, 4096);
 
     char cgi_success_path[] = "/nested/capstone_split/cgi/cgi_register_success.dom";
@@ -185,19 +187,31 @@ int main() {
         print_nobuf("Couldn't open cgi_register_success.dom\n");
     }
     else {
-        unsigned long read_size_cgi_success;
-        char* ptr = cgi_success_region_base + sizeof(read_size_cgi_success);
-        read_size_cgi_success = read(cgi_success_fd, ptr, 4096 - sizeof(read_size_cgi_success));
-        memcpy(cgi_success_region_base, &read_size_cgi_success, sizeof(read_size_cgi_success));
-        print_nobuf("read_size_cgi_success: %d\n", read_size_cgi_success);
+        char* ptr = cgi_success_region_base;
+        unsigned long read_size_cgi_success = read(cgi_success_fd, ptr, 4096);
+        print_nobuf("read_size_cgi_success: %lu\n", read_size_cgi_success);
         close(cgi_success_fd);
+    }
+
+    char* cgi_fail_region_base = map_region(cgi_fail_region, 4096);
+
+    char cgi_fail_path[] = "/nested/capstone_split/cgi/cgi_register_fail.dom";
+    int cgi_fail_fd = open(cgi_fail_path, O_RDONLY);
+    if (cgi_fail_fd == -1) {
+        print_nobuf("Couldn't open cgi_register_fail.dom\n");
+    }
+    else {
+        char* ptr = cgi_fail_region_base;
+        unsigned long read_size_cgi_fail = read(cgi_fail_fd, ptr, 4096);
+        print_nobuf("read_size_cgi_fail: %lu\n", read_size_cgi_fail);
+        close(cgi_fail_fd);
     }
 
     /* share regions */
     share_region(dom_id, socket_fd_region);
     share_region(dom_id, html_fd_region);
     share_region(dom_id, cgi_success_region);
-    // share_region(dom_id, cgi_fail_region);
+    share_region(dom_id, cgi_fail_region);
 
     /* socket setup */
     queue* q = queueCreate();

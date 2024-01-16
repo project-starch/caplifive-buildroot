@@ -2,13 +2,19 @@
 #include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/string.h>
+#include <linux/elf.h>
 #include "miniweb_backend.smode.h"
 
 static char stack[4096];
+
+static region_id_t socket_fd_region;
+static dom_id_t cgi_success_dom_id;
+static dom_id_t cgi_fail_dom_id;
+
 static char *socket_fd_region_base;
 static char *html_fd_region_base;
 static char *cgi_success_region_base;
-// static char *cgi_fail_region_base;
+static char *cgi_fail_region_base;
 
 static char* region_id_to_base(region_id_t region_id) {
 	struct sbiret sbi_res = sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_QUERY,
@@ -33,14 +39,43 @@ static void read_line_from_socket(char *buf, int buf_size) {
 	socket_fd_region_ptr += i;
 }
 
+static dom_id_t create_dom_from_region(char* elf_region_base) {
+	Elf64_Ehdr *elf_header = (Elf64_Ehdr *)elf_region_base;
+	Elf64_Phdr *phdrs = (Elf64_Phdr*)((void*)elf_header + elf_header->e_phoff);
+    Elf64_Half phnum = elf_header->e_phnum;
+
+	int ph_idx;
+    for (ph_idx = 0; ph_idx < phnum; ph_idx++) {
+        if (phdrs[ph_idx].p_type == PT_LOAD && (phdrs[ph_idx].p_flags & PF_X)) {
+            break;
+        }
+    }
+
+	unsigned long code_start = (unsigned long)elf_header + phdrs[ph_idx].p_offset;
+	unsigned long code_len = phdrs[ph_idx].p_filesz;
+	unsigned long entry_offset = elf_header->e_entry - phdrs[ph_idx].p_vaddr;
+	unsigned long tot_len = code_len + C_DOMAIN_DATA_SIZE;
+
+	struct sbiret sbi_res = sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_DOM_CREATE,
+		/* base paddr = */ code_start,
+		/* code size = */ code_len,
+		/* tot size = */ tot_len,
+		/* entry offset = */ entry_offset,
+		0, 0);
+	
+	return (dom_id_t)sbi_res.value;
+}
+
 static void request_handle_cgi(unsigned long register_success) {
 	unsigned long html_fd_status = HTML_FD_CGI;
 
 	if (register_success == 1) {
-		// TODO: domain creation and call
+		sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_DOM_CALL,
+			cgi_success_dom_id, 0, 0, 0, 0, 0);
 	}
 	else if (register_success == 0) {
-		// TODO: domain creation and call
+		sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_DOM_CALL,
+			cgi_fail_dom_id, 0, 0, 0, 0, 0);
 	}
 	else {
 		html_fd_status = HTML_FD_404RESPONSE;
@@ -56,7 +91,7 @@ static void handle_404_preprocessing(void) {
 static void request_reprocessing(void) {
 	char lineBuffer[256];
 
-	socket_fd_region_ptr = socket_fd_region_base + sizeof(unsigned long);
+	socket_fd_region_ptr = socket_fd_region_base + sizeof(unsigned long long);
 	read_line_from_socket(lineBuffer, 256);
 	char method[16];
 	char url[128];
@@ -111,7 +146,9 @@ static void request_reprocessing(void) {
 static void request_handle_404(void) {
 	unsigned long html_fd_len;
 	memcpy(&html_fd_len, html_fd_region_base + sizeof(unsigned long), sizeof(html_fd_len));
-	memcpy(socket_fd_region_base, html_fd_region_base + sizeof(unsigned long), sizeof(html_fd_len) + html_fd_len);
+	unsigned long long socket_fd_len = (unsigned long long)html_fd_len;
+	memcpy(socket_fd_region_base, &socket_fd_len, sizeof(socket_fd_len));
+	memcpy(socket_fd_region_base + sizeof(socket_fd_len), html_fd_region_base + 2 * sizeof(unsigned long), html_fd_len);
 }
 
 static void request_handle_200(void) {
@@ -124,7 +161,7 @@ static void request_handle_200(void) {
 	char buffer[256];
 	snprintf(buffer, 256, "%s%s%s%lu\n\n", responseStatus, responseOther, responseLen, html_fd_len);
 	unsigned long buffer_size = strlen(buffer);
-	unsigned long socket_fd_len = buffer_size + html_fd_len;
+	unsigned long long socket_fd_len = buffer_size + html_fd_len;
 
 	memcpy(socket_fd_region_base, &socket_fd_len, sizeof(socket_fd_len));
 	memcpy(socket_fd_region_base + sizeof(socket_fd_len), buffer, buffer_size);
@@ -136,16 +173,25 @@ static void main(void) {
 	struct sbiret sbi_res = sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_COUNT,
 		0, 0, 0, 0, 0, 0);
 	const region_id_t region_n = sbi_res.value;
-	// region_id_t cgi_fail_region = region_n - 1;
-	// region_id_t cgi_success_region = cgi_fail_region - 1;
-	region_id_t cgi_success_region = region_n - 1;
+	region_id_t cgi_fail_region = region_n - 1;
+	region_id_t cgi_success_region = cgi_fail_region - 1;
 	region_id_t html_fd_region = cgi_success_region - 1;
-	region_id_t socket_fd_region = html_fd_region - 1;
+	socket_fd_region = html_fd_region - 1;
 
 	socket_fd_region_base = region_id_to_base(socket_fd_region);
 	html_fd_region_base = region_id_to_base(html_fd_region);
 	cgi_success_region_base = region_id_to_base(cgi_success_region);
-	// cgi_fail_region_base = region_id_to_base(cgi_fail_region);
+	cgi_fail_region_base = region_id_to_base(cgi_fail_region);
+
+	/* CGI domains */
+	// note that this part of code can only be executed once in multiple domain re-entry 
+	dom_id_t cgi_success_dom_id = create_dom_from_region(cgi_success_region_base);
+	dom_id_t cgi_fail_dom_id = create_dom_from_region(cgi_fail_region_base);
+
+	sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_SHARE,
+			cgi_success_dom_id, socket_fd_region, 0, 0, 0, 0);
+	sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_SHARE,
+			cgi_fail_dom_id, socket_fd_region, 0, 0, 0, 0);
 
 	while (1) {
 		unsigned long rv = 0;
