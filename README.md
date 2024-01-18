@@ -57,21 +57,48 @@ Pass the following arguments to Capstone-QEMU:
 
 where `<path>` is the path to the local working directory of this repo.
 
-
 Log in using `root`.
 
 Both the kernel module and the test program are located at `/`.
 To install or uninstall the kernel module,
 
-    modprobe capstone       # install
-    modprobe -r capstone    # uninstall
+    insmod /capstone.ko       # install
+    insmod -r capstone    # uninstall
 
 After the kernel module is installed, you can run the test program
 
-    /capstone-test <test domain ELF file> [<number of times to call the domain (default: 1)>]
+    /capstone-test.user <test domain ELF file> [<number of times to call the domain (default: 1)>]
 
 The `/run-test` script does all the operations above.
 
     /run-test <test domain name> [<number of times to call the domain (default: 1)>]
 
 The test domain name does not include the `.dom` suffix.
+
+#### Case Study: In-kernel Isolation of Null Block Devices
+
+> TL;DR: Run `expect capstone_nullb.tcl` in Capstone-QEMU to see the results.
+
+Build the null block device kernel module and the isolated
+kernel module which will run in another Captainer domain:
+
+    make build CAPSTONE_CC_PATH=<path-to-capstone-c-compiler-directory> A=capstone-null-blk-build
+
+Build the user space setup program:
+
+    make build CAPSTONE_CC_PATH=<path-to-capstone-c-compiler-directory> A=modcapstone-rebuild
+
+Load the `capstone` and `configfs` kernel modules:
+
+    modprobe configfs
+    insmod /capstone.ko
+
+Run the user space setup program:
+
+    /null_blk.user
+
+Load the null block device kernel module:
+
+    insmod /nullb/capstone_split/null_blk.ko
+
+Then the null block device is ready to be used.
