@@ -75,3 +75,15 @@ The `/run-test` script does all the operations above.
     /run-test <test domain name> [<number of times to call the domain (default: 1)>]
 
 The test domain name does not include the `.dom` suffix.
+
+### DPDK case study usage
+
+In the `capstone-test-domains` directory there are some files that are names using the following format `dpdk_client<#>.dom.c`. This is the format that allows the creation of new *client domains*. For different implementations of clients, changes to the primary process might be needed as well.
+
+Build and run QEMU as mentioned in the [Build Instructions](#build-instructions) and [Usage](#usage) sections. Once QEMU is up and running need to the following:
+* install the *capstone.ko* kernel drive, in order to allow captainer functionalities.
+* run `mount -t hugetlbfs nodev /mnt/huge && echo 2048 > /sys/kernel/mm/hugepages/hugepages-2048kB/nr_hugepages`
+* go to the *root (/)* directory
+* run `./dpdk-chat_server -l 0 -n 4 -- -p 3 -n <nr_of_domains>`
+
+The `dpdp_server` should be part of the *overlay* directory. If not, go the dpdk directory, build the apptainer image from there called *dpdk-cross-compile.def* and then run `./<name_of_the_sif_image> build` or `./<name_of_the_sif_image> rebuild` (if you already executed the build command). After the build copy the *dpdk-chat_server* executable from the *dpdk/dpdk-stable-22.11.3/riscv-build/examples* directory to the *overlay* directory.
