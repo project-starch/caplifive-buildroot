@@ -1,11 +1,12 @@
 #include <linux/module.h>
 #include <linux/init.h>
 #include <linux/kernel.h>
-#include <linux/string.h>
 #include <linux/elf.h>
 #include "miniweb_backend.smode.h"
 
-static char stack[4096];
+#define C_PRINT(v) __asm__ volatile(".insn r 0x5b, 0x1, 0x43, x0, %0, x0" :: "r"(v))
+#define STACK_SIZE (4096 * 2)
+static char stack[STACK_SIZE];
 
 static region_id_t socket_fd_region;
 static dom_id_t cgi_success_dom_id;
@@ -80,12 +81,54 @@ static void request_handle_cgi(unsigned long register_success) {
 	else {
 		html_fd_status = HTML_FD_404RESPONSE;
 	}
-	memcpy(html_fd_region_base, &html_fd_status, sizeof(html_fd_status));
+	*((unsigned long *)html_fd_region_base) = html_fd_status;
 }
 
 static void handle_404_preprocessing(void) {
 	unsigned long html_fd_status = HTML_FD_404RESPONSE;
-	memcpy(html_fd_region_base, &html_fd_status, sizeof(html_fd_status));
+	*((unsigned long *)html_fd_region_base) = html_fd_status;
+}
+
+static int simple_strcmp(const char *str1, const char *str2) {
+    while (*str1 != '\0' && *str2 != '\0') {
+        if (*str1 != *str2) {
+            return (*str1 - *str2);
+        }
+        str1++;
+        str2++;
+    }
+
+    return (*str1 - *str2);
+}
+
+static int simple_strncmp(const char *str1, const char *str2, unsigned long n) {
+    while (n > 0) {
+        if (*str1 == '\0' || *str2 == '\0') {
+            return (*str1 - *str2);
+        }
+
+        if (*str1 != *str2) {
+            return (*str1 - *str2);
+        }
+
+        str1++;
+        str2++;
+        n--;
+    }
+
+    return 0;
+}
+
+static void simple_memcpy(void *dest, const void *src, unsigned long n) {
+    char *dest_ptr = (char *)dest;
+    const char *src_ptr = (const char *)src;
+
+    while (n > 0) {
+        *dest_ptr = *src_ptr;
+        dest_ptr++;
+        src_ptr++;
+        n--;
+    }
 }
 
 static void request_reprocessing(void) {
@@ -113,13 +156,13 @@ static void request_reprocessing(void) {
 	}
 	url[j] = '\0';
 
-	if (strcmp(method, "POST") == 0) {
-		if (strncmp(url, "/cgi/", 5) == 0) {
-			if (strncmp(url, "/cgi/cgi_register_success.dom", 29) == 0) {
+	if (simple_strcmp(method, "POST") == 0) {
+		if (simple_strncmp(url, "/cgi/", 5) == 0) {
+			if (simple_strncmp(url, "/cgi/cgi_register_success.dom", 29) == 0) {
 				request_handle_cgi(1);
 				return;
 			}
-			else if (strncmp(url, "/cgi/cgi_register_fail.dom", 26) == 0){
+			else if (simple_strncmp(url, "/cgi/cgi_register_fail.dom", 26) == 0){
 				request_handle_cgi(0);
 				return;
 			}
@@ -135,20 +178,79 @@ static void request_reprocessing(void) {
 	}
 	else {
 		unsigned long html_fd_status = HTML_FD_200RESPONSE;
-		memcpy(html_fd_region_base, &html_fd_status, sizeof(html_fd_status));
+		simple_memcpy(html_fd_region_base, &html_fd_status, sizeof(html_fd_status));
 		unsigned long html_fd_len = strlen(url) + 1;
-		memcpy(html_fd_region_base + sizeof(html_fd_status), &html_fd_len, sizeof(html_fd_len));
-		memcpy(html_fd_region_base + sizeof(html_fd_status) + sizeof(html_fd_len), url, html_fd_len);
+		simple_memcpy(html_fd_region_base + sizeof(html_fd_status), &html_fd_len, sizeof(html_fd_len));
+		simple_memcpy(html_fd_region_base + sizeof(html_fd_status) + sizeof(html_fd_len), url, html_fd_len);
 		return;
 	}
 }
 
 static void request_handle_404(void) {
 	unsigned long html_fd_len;
-	memcpy(&html_fd_len, html_fd_region_base + sizeof(unsigned long), sizeof(html_fd_len));
+	simple_memcpy(&html_fd_len, html_fd_region_base + sizeof(unsigned long), sizeof(html_fd_len));
 	unsigned long long socket_fd_len = (unsigned long long)html_fd_len;
-	memcpy(socket_fd_region_base, &socket_fd_len, sizeof(socket_fd_len));
-	memcpy(socket_fd_region_base + sizeof(socket_fd_len), html_fd_region_base + 2 * sizeof(unsigned long), html_fd_len);
+	simple_memcpy(socket_fd_region_base, &socket_fd_len, sizeof(socket_fd_len));
+	simple_memcpy(socket_fd_region_base + sizeof(socket_fd_len), html_fd_region_base + 2 * sizeof(unsigned long), html_fd_len);
+}
+
+void ulong_to_str(char *dest, unsigned long num) {
+    if (num == 0) {
+        *dest = '0';
+        dest++;
+        *dest = '\0';
+        return;
+    }
+
+    char temp[21];
+
+    int i = 0;
+    while (num > 0) {
+        temp[i] = '0' + num % 10;
+        num /= 10;
+        i++;
+    }
+
+    for (int j = i - 1; j >= 0; j--) {
+        *dest = temp[j];
+        dest++;
+    }
+
+    *dest = '\0';
+}
+
+unsigned long strcat_four_strings(char *dest, const char *str1, const char *str2, const char *str3, const char *str4) {
+    unsigned long length = 0;
+	
+	while (*str1 != '\0') {
+        *dest = *str1;
+        dest++;
+        str1++;
+		length++;
+    }
+
+    while (*str2 != '\0') {
+        *dest = *str2;
+        dest++;
+        str2++;
+		length++;
+    }
+
+    while (*str3 != '\0') {
+        *dest = *str3;
+        dest++;
+        str3++;
+		length++;
+    }
+
+	while (*str4 != '\0') {
+        *dest = *str4;
+        dest++;
+        str4++;
+		length++;
+    }
+
+    return length;
 }
 
 static void request_handle_200(void) {
@@ -156,16 +258,18 @@ static void request_handle_200(void) {
 	const char* responseOther = "Connection: close\nContent-Type: text/html\n";
 	const char* responseLen = "Content-Length: ";
 	unsigned long html_fd_len;
-	memcpy(&html_fd_len, html_fd_region_base + sizeof(unsigned long), sizeof(html_fd_len));
+	simple_memcpy(&html_fd_len, html_fd_region_base + sizeof(unsigned long), sizeof(html_fd_len));
 
 	char buffer[256];
-	snprintf(buffer, 256, "%s%s%s%lu\n\n", responseStatus, responseOther, responseLen, html_fd_len);
+	char num_char[21];
+	ulong_to_str(num_char, html_fd_len);
+	strcat_four_strings(buffer, responseStatus, responseOther, responseLen, num_char);
 	unsigned long buffer_size = strlen(buffer);
 	unsigned long long socket_fd_len = buffer_size + html_fd_len;
 
-	memcpy(socket_fd_region_base, &socket_fd_len, sizeof(socket_fd_len));
-	memcpy(socket_fd_region_base + sizeof(socket_fd_len), buffer, buffer_size);
-	memcpy(socket_fd_region_base + sizeof(socket_fd_len) + buffer_size, html_fd_region_base + sizeof(unsigned long) + sizeof(html_fd_len), html_fd_len);
+	simple_memcpy(socket_fd_region_base, &socket_fd_len, sizeof(socket_fd_len));
+	simple_memcpy(socket_fd_region_base + sizeof(socket_fd_len), buffer, buffer_size);
+	simple_memcpy(socket_fd_region_base + sizeof(socket_fd_len) + buffer_size, html_fd_region_base + sizeof(unsigned long) + sizeof(html_fd_len), html_fd_len);
 }
 
 static void main(void) {
@@ -196,8 +300,7 @@ static void main(void) {
 	while (1) {
 		unsigned long rv = 0;
 
-		unsigned long html_fd_status;
-		memcpy(&html_fd_status, html_fd_region_base, sizeof(html_fd_status));
+		unsigned long html_fd_status = *((unsigned long *)html_fd_region_base);
 
 		switch (html_fd_status) {
 			case HTML_FD_UNDEFINED:
@@ -221,7 +324,7 @@ static void main(void) {
 
 static __attribute__((naked)) int __init miniweb_backend_init(void)
 {
-	__asm__ volatile ("mv sp, %0" :: "r"(stack + 4096));
+	__asm__ volatile ("mv sp, %0" :: "r"(stack + STACK_SIZE));
 	main();
 
 	return 0;

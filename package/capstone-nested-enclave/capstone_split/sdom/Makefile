@@ -1,5 +1,5 @@
 obj-m += miniweb_backend.smode.o
-ccflags-y := -Wno-declaration-after-statement -std=gnu99
+ccflags-y := -Wno-declaration-after-statement -std=gnu99 -O1
 
 .PHONY: all clean
 

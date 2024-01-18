@@ -12,6 +12,7 @@
 #define QUEUE_SIZE 16
 #define THREAD_SIZE 1 // 1 thread for now
 #define CONNECTION_NUM 3
+#define CGI_ELF_REGION_SIZE (4096 * 64)
 #define print_nobuf(...) do { printf(__VA_ARGS__); fflush(stdout); } while(0)
 
 #define HTML_FD_UNDEFINED 0
@@ -167,10 +168,10 @@ int main() {
     region_id_t html_fd_region = create_region(4096);
     print_nobuf("Shared region created with ID %lu\n", html_fd_region);
     // cgi_success_region
-    region_id_t cgi_success_region = create_region(4096);
+    region_id_t cgi_success_region = create_region(CGI_ELF_REGION_SIZE);
     print_nobuf("Shared region created with ID %lu\n", cgi_success_region);
     // cgi_fail_region
-    region_id_t cgi_fail_region = create_region(4096);
+    region_id_t cgi_fail_region = create_region(CGI_ELF_REGION_SIZE);
     print_nobuf("Shared region created with ID %lu\n", cgi_fail_region);
 
     socket_fd_region_base = map_region(socket_fd_region, 4096);
@@ -179,7 +180,7 @@ int main() {
     /* cgi content set up */ 
     // no metadata is stored in cgi-related regions
     // and the passing of the region is one-time, one-way only
-    char* cgi_success_region_base = map_region(cgi_success_region, 4096);
+    char* cgi_success_region_base = map_region(cgi_success_region, CGI_ELF_REGION_SIZE);
 
     char cgi_success_path[] = "/nested/capstone_split/cgi/cgi_register_success.dom";
     int cgi_success_fd = open(cgi_success_path, O_RDONLY);
@@ -188,12 +189,12 @@ int main() {
     }
     else {
         char* ptr = cgi_success_region_base;
-        unsigned long read_size_cgi_success = read(cgi_success_fd, ptr, 4096);
+        unsigned long read_size_cgi_success = read(cgi_success_fd, ptr, CGI_ELF_REGION_SIZE);
         print_nobuf("read_size_cgi_success: %lu\n", read_size_cgi_success);
         close(cgi_success_fd);
     }
 
-    char* cgi_fail_region_base = map_region(cgi_fail_region, 4096);
+    char* cgi_fail_region_base = map_region(cgi_fail_region, CGI_ELF_REGION_SIZE);
 
     char cgi_fail_path[] = "/nested/capstone_split/cgi/cgi_register_fail.dom";
     int cgi_fail_fd = open(cgi_fail_path, O_RDONLY);
@@ -202,7 +203,7 @@ int main() {
     }
     else {
         char* ptr = cgi_fail_region_base;
-        unsigned long read_size_cgi_fail = read(cgi_fail_fd, ptr, 4096);
+        unsigned long read_size_cgi_fail = read(cgi_fail_fd, ptr, CGI_ELF_REGION_SIZE);
         print_nobuf("read_size_cgi_fail: %lu\n", read_size_cgi_fail);
         close(cgi_fail_fd);
     }

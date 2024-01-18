@@ -10,7 +10,7 @@ typedef unsigned long region_id_t;
 #define HTML_FD_200RESPONSE 2
 #define HTML_FD_CGI 3
 
-#define C_DOMAIN_DATA_SIZE 1024 * 2
+#define C_DOMAIN_DATA_SIZE 4096 * 2
 
 /* sbi */
 #define SBI_EXT_CAPSTONE 0x12345678
