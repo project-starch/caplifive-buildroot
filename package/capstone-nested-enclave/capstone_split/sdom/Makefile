@@ -1,10 +1,9 @@
-obj-m += miniweb_backend.smode.o
-ccflags-y := -Wno-declaration-after-statement -std=gnu99 -O1
+.PHONY: all
 
-.PHONY: all clean
+DOMS_SMODE_SRC = $(wildcard $(CURDIR)/*.smode.c)
+DOMS_SMODE_TARGETS = $(patsubst %.smode.c,%.smode,$(DOMS_SMODE_SRC))
 
-all:
-	$(MAKE) -C '$(LINUX_DIR)' M='$(PWD)' ARCH=$(KERNEL_ARCH) CROSS_COMPILE=$(TARGET_CROSS) modules
+all: $(DOMS_SMODE_TARGETS)
 
-clean:
-	$(MAKE) -C '$(LINUX_DIR)' M='$(PWD)' ARCH=$(KERNEL_ARCH) CROSS_COMPILE=$(TARGET_CROSS) clean
+$(DOMS_SMODE_TARGETS):%:%.c
+	$(CC) -static -nostdlib -fPIC -fno-stack-protector -o "$@" "$^"

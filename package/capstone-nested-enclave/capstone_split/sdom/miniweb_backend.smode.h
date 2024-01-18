@@ -4,6 +4,59 @@
 typedef unsigned long dom_id_t;
 typedef unsigned long region_id_t;
 
+/* elf */
+#define EI_NIDENT	16
+
+#define PT_NULL    0
+#define PT_LOAD    1
+#define PT_DYNAMIC 2
+#define PT_INTERP  3
+#define PT_NOTE    4
+#define PT_SHLIB   5
+#define PT_PHDR    6
+#define PT_TLS     7 /* Thread local storage segment */
+
+#define PF_R		0x4
+#define PF_W		0x2
+#define PF_X		0x1
+
+typedef unsigned long long	Elf64_Addr;
+typedef unsigned short	Elf64_Half;
+typedef short	Elf64_SHalf;
+typedef unsigned long long	Elf64_Off;
+typedef int	Elf64_Sword;
+typedef unsigned int	Elf64_Word;
+typedef unsigned long long	Elf64_Xword;
+typedef long long	Elf64_Sxword;
+
+typedef struct elf64_hdr {
+  unsigned char	e_ident[EI_NIDENT];	/* ELF "magic number" */
+  Elf64_Half e_type;
+  Elf64_Half e_machine;
+  Elf64_Word e_version;
+  Elf64_Addr e_entry;		/* Entry point virtual address */
+  Elf64_Off e_phoff;		/* Program header table file offset */
+  Elf64_Off e_shoff;		/* Section header table file offset */
+  Elf64_Word e_flags;
+  Elf64_Half e_ehsize;
+  Elf64_Half e_phentsize;
+  Elf64_Half e_phnum;
+  Elf64_Half e_shentsize;
+  Elf64_Half e_shnum;
+  Elf64_Half e_shstrndx;
+} Elf64_Ehdr;
+
+typedef struct elf64_phdr {
+  Elf64_Word p_type;
+  Elf64_Word p_flags;
+  Elf64_Off p_offset;		/* Segment file offset */
+  Elf64_Addr p_vaddr;		/* Segment virtual address */
+  Elf64_Addr p_paddr;		/* Segment physical address */
+  Elf64_Xword p_filesz;		/* Segment size in file */
+  Elf64_Xword p_memsz;		/* Segment size in memory */
+  Elf64_Xword p_align;		/* Segment alignment, file & memory */
+} Elf64_Phdr;
+
 /* html_fd_status */
 #define HTML_FD_UNDEFINED 0
 #define HTML_FD_404RESPONSE 1

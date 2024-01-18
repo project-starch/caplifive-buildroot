@@ -1,7 +1,3 @@
-#include <linux/module.h>
-#include <linux/init.h>
-#include <linux/kernel.h>
-#include <linux/elf.h>
 #include "miniweb_backend.smode.h"
 
 #define C_PRINT(v) __asm__ volatile(".insn r 0x5b, 0x1, 0x43, x0, %0, x0" :: "r"(v))
@@ -155,6 +151,7 @@ static void request_reprocessing(void) {
 		j++;
 	}
 	url[j] = '\0';
+	unsigned long url_length = j - 1;
 
 	if (simple_strcmp(method, "POST") == 0) {
 		if (simple_strncmp(url, "/cgi/", 5) == 0) {
@@ -179,7 +176,7 @@ static void request_reprocessing(void) {
 	else {
 		unsigned long html_fd_status = HTML_FD_200RESPONSE;
 		simple_memcpy(html_fd_region_base, &html_fd_status, sizeof(html_fd_status));
-		unsigned long html_fd_len = strlen(url) + 1;
+		unsigned long html_fd_len = url_length + 1;
 		simple_memcpy(html_fd_region_base + sizeof(html_fd_status), &html_fd_len, sizeof(html_fd_len));
 		simple_memcpy(html_fd_region_base + sizeof(html_fd_status) + sizeof(html_fd_len), url, html_fd_len);
 		return;
@@ -263,8 +260,7 @@ static void request_handle_200(void) {
 	char buffer[256];
 	char num_char[21];
 	ulong_to_str(num_char, html_fd_len);
-	strcat_four_strings(buffer, responseStatus, responseOther, responseLen, num_char);
-	unsigned long buffer_size = strlen(buffer);
+	unsigned long buffer_size = strcat_four_strings(buffer, responseStatus, responseOther, responseLen, num_char);
 	unsigned long long socket_fd_len = buffer_size + html_fd_len;
 
 	simple_memcpy(socket_fd_region_base, &socket_fd_len, sizeof(socket_fd_len));
@@ -322,20 +318,7 @@ static void main(void) {
 	}
 }
 
-static __attribute__((naked)) int __init miniweb_backend_init(void)
-{
-	__asm__ volatile ("mv sp, %0" :: "r"(stack + STACK_SIZE));
-	main();
-
-	return 0;
+__attribute__((naked)) void _start() {
+    __asm__ volatile ("mv sp, %0" :: "r"(stack + STACK_SIZE));
+	__asm__ volatile ("j main");
 }
-
-static void __exit miniweb_backend_exit(void)
-{
-	return;
-}
-
-module_init(miniweb_backend_init);
-module_exit(miniweb_backend_exit);
-
-MODULE_LICENSE("GPL");

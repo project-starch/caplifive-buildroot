@@ -155,8 +155,18 @@ void* workerThread(void *arg) {
 int main() {
     capstone_init();
 
+    /* for this case study to run, we have several assumptions about data type sizes*/
+    // short: 16 bits
+    // int: 32 bits
+    // long: 64 bits
+    // long long: 64 bits
+    print_nobuf("Size of short: %zu bytes\n", sizeof(short));
+    print_nobuf("Size of int: %zu bytes\n", sizeof(int));
+    print_nobuf("Size of long: %zu bytes\n", sizeof(long));
+    print_nobuf("Size of long long: %zu bytes\n", sizeof(long long));
+
     /* domain creation, shared regions setup */
-    dom_id = create_dom_ko("/test-domains/sbi.dom", "/nested/capstone_split/miniweb_backend.smode.ko");
+    dom_id = create_dom("/test-domains/sbi.dom", "/nested/capstone_split/miniweb_backend.smode");
     print_nobuf("SBI domain created with ID %lu\n", dom_id);
 
     // this region is shared among miniweb_frontend.user, miniweb_backend.smode.ko and cgis
