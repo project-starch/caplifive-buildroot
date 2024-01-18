@@ -10,8 +10,7 @@ endef
 
 define CAPSTONE_NESTED_ENCLAVE_INSTALL_TARGET_CMDS
 	$(INSTALL) -D -m 0755 '$(@D)/baseline/miniweb' '$(TARGET_DIR)/nested/baseline/miniweb'
-	$(INSTALL) -D -m 0755 '$(@D)/baseline/cgi/register_success' '$(TARGET_DIR)/nested/baseline/cgi/register_success'
-	$(INSTALL) -D -m 0755 '$(@D)/baseline/cgi/register_fail' '$(TARGET_DIR)/nested/baseline/cgi/register_fail'
+	$(INSTALL) -D -m 0755 '$(@D)/baseline/cgi/register' '$(TARGET_DIR)/nested/baseline/cgi/register'
 	$(INSTALL) -D -m 0755 '$(@D)/baseline/www/index.html' '$(TARGET_DIR)/nested/baseline/www/index.html'
 	$(INSTALL) -D -m 0755 '$(@D)/baseline/404Response.txt' '$(TARGET_DIR)/nested/baseline/404Response.txt'
 	$(INSTALL) -D -m 0755 '$(@D)/capstone_split/cgi/cgi_register_success.dom' '$(TARGET_DIR)/nested/capstone_split/cgi/cgi_register_success.dom'

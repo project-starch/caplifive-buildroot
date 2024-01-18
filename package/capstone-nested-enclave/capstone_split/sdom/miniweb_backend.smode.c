@@ -38,6 +38,11 @@ static void read_line_from_socket(char *buf, int buf_size) {
 
 static dom_id_t create_dom_from_region(char* elf_region_base) {
 	Elf64_Ehdr *elf_header = (Elf64_Ehdr *)elf_region_base;
+
+	if (elf_header->e_machine != EM_RISCV) {
+		C_PRINT(0xdeadbeef);
+	}
+
 	Elf64_Phdr *phdrs = (Elf64_Phdr*)((void*)elf_header + elf_header->e_phoff);
     Elf64_Half phnum = elf_header->e_phnum;
 
@@ -52,6 +57,7 @@ static dom_id_t create_dom_from_region(char* elf_region_base) {
 	unsigned long code_len = phdrs[ph_idx].p_filesz;
 	unsigned long entry_offset = elf_header->e_entry - phdrs[ph_idx].p_vaddr;
 	unsigned long tot_len = code_len + C_DOMAIN_DATA_SIZE;
+	tot_len = (((tot_len - 1) >> 4) + 1) << 4; // align to 16 bytes
 
 	struct sbiret sbi_res = sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_DOM_CREATE,
 		/* base paddr = */ code_start,
@@ -246,6 +252,11 @@ unsigned long strcat_four_strings(char *dest, const char *str1, const char *str2
         str4++;
 		length++;
     }
+
+	// padding with \n\n
+	*dest = '\n';
+	*(dest + 1) = '\n';
+	length += 2;
 
     return length;
 }

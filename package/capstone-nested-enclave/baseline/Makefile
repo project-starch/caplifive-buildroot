@@ -1,12 +1,9 @@
 .PHONY: all
 
-all: miniweb cgi/register_success cgi/register_fail
+all: miniweb cgi/register
 
-cgi/register_success: cgi/register_success.c
-	$(CC) cgi/register_success.c -o cgi/register_success
-
-cgi/register_fail: cgi/register_fail.c
-	$(CC) cgi/register_fail.c -o cgi/register_fail
+cgi/register: cgi/register.c
+	$(CC) cgi/register.c -o cgi/register
 
 miniweb: miniweb.o queue.o
 	$(CC) miniweb.o queue.o -pthread -o miniweb

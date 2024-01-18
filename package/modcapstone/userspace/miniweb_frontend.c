@@ -80,11 +80,15 @@ void* workerThread(void *arg) {
     // html_fd_region: (unsigned long) html_fd_status, (unsigned long) html_fd_len, (char*) content (path or file content)
     unsigned long html_fd_status = HTML_FD_UNDEFINED;
     memcpy(html_fd_region_base, &html_fd_status, sizeof(html_fd_status));
+    print_nobuf("enter backend: for preprocessing\n");
     call_dom(dom_id);
+    print_nobuf("exit backend: return from preprocessing\n");
     unsigned long html_fd_len; // also server as the path length
     memcpy(&html_fd_len, html_fd_region_base + sizeof(html_fd_status), sizeof(html_fd_len));
+    memcpy(&html_fd_status, html_fd_region_base, sizeof(html_fd_status));
     
     if (html_fd_status == HTML_FD_200RESPONSE) {
+        print_nobuf("Backend request for 200 response\n");
         char* file_path = malloc(html_fd_len);
         memcpy(file_path, html_fd_region_base + sizeof(html_fd_status) + sizeof(html_fd_len), html_fd_len);
         char prefix[] = "/nested/capstone_split/www";
@@ -107,10 +111,13 @@ void* workerThread(void *arg) {
             print_nobuf("read_size_html_fd: %d\n", read_size_html_fd);
             close(html_fd);
 
+            print_nobuf("enter backend: 200 response\n");
             call_dom(dom_id);
+            print_nobuf("exit backend: return from 200 response\n");
             // sync socket_fd_region to socket fd
             unsigned long long socket_fd_region_len;
             memcpy(&socket_fd_region_len, socket_fd_region_base, sizeof(socket_fd_region_len));
+            print_nobuf("socket_fd_region_len: %llu\n", socket_fd_region_len);
             ptr = socket_fd_region_base + sizeof(socket_fd_region_len);
             write(fd, ptr, socket_fd_region_len);
             close(fd);
@@ -119,6 +126,7 @@ void* workerThread(void *arg) {
 
     // 2 cases: 404 from backend or 404 due to file not found
     if (html_fd_status == HTML_FD_404RESPONSE) {
+        print_nobuf("Backend request for 404 response\n");
         char error_path[] = "/nested/capstone_split/404Response.txt";
         int error_fd = open(error_path, O_RDONLY);
         if (error_fd == -1) {
@@ -131,10 +139,13 @@ void* workerThread(void *arg) {
             print_nobuf("read_size_html_fd: %d\n", read_size_html_fd);
             close(error_fd);
 
+            print_nobuf("enter backend: 404 response\n");
             call_dom(dom_id);
+            print_nobuf("exit backend: return from 404 response\n");
             // sync socket_fd_region to socket fd
             unsigned long long socket_fd_region_len;
             memcpy(&socket_fd_region_len, socket_fd_region_base, sizeof(socket_fd_region_len));
+            print_nobuf("socket_fd_region_len: %llu\n", socket_fd_region_len);
             ptr = socket_fd_region_base + sizeof(socket_fd_region_len);
             write(fd, ptr, socket_fd_region_len);
             close(fd);
@@ -143,10 +154,18 @@ void* workerThread(void *arg) {
     
     if (html_fd_status == HTML_FD_CGI) {
         print_nobuf("POST request is handled by CGI.\n");
+
+        // sync socket_fd_region to socket fd
+        unsigned long long socket_fd_region_len;
+        memcpy(&socket_fd_region_len, socket_fd_region_base, sizeof(socket_fd_region_len));
+        print_nobuf("socket_fd_region_len: %llu\n", socket_fd_region_len);
+        ptr = socket_fd_region_base + sizeof(socket_fd_region_len);
+        write(fd, ptr, socket_fd_region_len);
+        close(fd);
     }
 
     if (html_fd_status == HTML_FD_UNDEFINED) {
-        print_nobuf("Server internal error.\n");
+        print_nobuf("Server internal error: HTML FD UNDEFINED!\n");
     }
   } // end while
   return NULL;

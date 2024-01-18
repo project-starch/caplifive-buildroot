@@ -34,7 +34,7 @@ unsigned unsigned_to_char_reverse(unsigned num, char* num_char) {
     return i;
 }
 
-void register_fail(void) {
+void register_success(void) {
     char name[16];
     char* socket_region_ptr = (char *)shared_region + SIZE_OF_ULL;
 
@@ -213,7 +213,7 @@ void register_fail(void) {
 
 
 void dpi_call(void) {
-    register_fail();
+    register_success();
 }
 
 void dpi_share_region(void *region) {

@@ -1,13 +1,20 @@
 <!DOCTYPE html>
 <head>
-    <title>Welcome to miniweb</title>
+    <title>Welcome to Captainer Demo Web Server</title>
+    <script>
+        function submitForm(action) {
+            document.getElementById('registerForm').action = action;
+            document.getElementById('registerForm').submit();
+        }
+    </script>
 </head>
 <body>
     <h1>Register</h1>
     <p>Fill out the form below to register for our newsletter.</p>
-    <form action="http://localhost:8888/cgi/register" method="post">
+    <form id="registerForm" method="post">
       Your name: <input type="text" name="name"><br>
       Your email: <input type="email" name="email"><br>
-      <input type="submit">
+      <input type="button" value="Submit Success" onclick="submitForm('http://localhost:8888/cgi/cgi_register_success.dom')">
+      <input type="button" value="Submit Fail" onclick="submitForm('http://localhost:8888/cgi/cgi_register_fail.dom')">
     </form>
 </body>
