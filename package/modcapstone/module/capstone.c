@@ -92,6 +92,7 @@ static void ioctl_create_dom(struct ioctl_dom_create_args* __user args) {
 	unsigned long dom_paddr = __pa(dom_vaddr);
 	// TODO: do we still need to do this on page granularity?
 	pr_info("Domain memory region vaddr = %lx, paddr = %lx\n", dom_vaddr, dom_paddr);
+	pr_info("code size = %lu, tot_size = %lx, entry_offset = %lx\n", m_args.code_len, (1 << dom_pages_log2) * PAGE_SIZE, m_args.entry_offset);
 
 	copy_from_user((void*)dom_vaddr, m_args.code_begin, m_args.code_len);
 

@@ -199,9 +199,22 @@ static int load_elf_code_ko(const char *file_name, struct ElfCode *res) {
     int sh_idx;
     char* shstrtab = (char*)(((void*)elf_header) + shdrs[elf_header->e_shstrndx].sh_offset);
 
+    int init_text_sh_idx = -1;
+    int exec_sh_idx = -1;
+
     for (sh_idx = 0; sh_idx < shnum; sh_idx ++) {
         if (shdrs[sh_idx].sh_type == SHT_PROGBITS && shdrs[sh_idx].sh_flags == (SHF_ALLOC | SHF_EXECINSTR)) {
+            if (exec_sh_idx == -1) {
+                exec_sh_idx = sh_idx;
+                printf("Found executable section header.\n");
+            }
+            
             if (strcmp(shstrtab + shdrs[sh_idx].sh_name, ".init.text") == 0) {
+                init_text_sh_idx = sh_idx;
+                printf(".init.text found.\n");
+            }
+
+            if (init_text_sh_idx != -1 && exec_sh_idx != -1) {
                 break;
             }
         }
@@ -212,19 +225,20 @@ static int load_elf_code_ko(const char *file_name, struct ElfCode *res) {
         goto clean_up_mmap;
     }
 
-    printf(".init.text found.\n");
-
     res->fd = elf_fd;
     res->map_base = (void*)elf_header;
     res->size = file_stat.st_size;
-    res->code_start = (unsigned long)elf_header + shdrs[sh_idx].sh_addr + shdrs[sh_idx].sh_offset;
+    unsigned long exec_start = (unsigned long)elf_header + shdrs[exec_sh_idx].sh_addr + shdrs[exec_sh_idx].sh_offset;
+    unsigned long init_text_start = (unsigned long)elf_header + shdrs[init_text_sh_idx].sh_addr + shdrs[init_text_sh_idx].sh_offset;
+    res->code_start = exec_start;
     printf("Code start = %lx\n", res->code_start);
-    res->code_len = shdrs[sh_idx].sh_size;
+    unsigned long init_text_len = shdrs[init_text_sh_idx].sh_size;
+    res->code_len = init_text_start + init_text_len - exec_start;
     printf("Code len = %lx\n", res->code_len);
-    res->entry_offset = 0;
+    res->entry_offset = init_text_start - exec_start;
 
     unsigned long loadable_start, loadable_end;
-    loadable_start = shdrs[sh_idx].sh_addr + shdrs[sh_idx].sh_offset;
+    loadable_start = shdrs[exec_sh_idx].sh_addr + shdrs[exec_sh_idx].sh_offset;
 
     for (sh_idx = shnum - 1; sh_idx >= 0; sh_idx --) {
         if (shdrs[sh_idx].sh_type == SHT_PROGBITS && shdrs[sh_idx].sh_flags == (SHF_ALLOC | SHF_EXECINSTR)) {
