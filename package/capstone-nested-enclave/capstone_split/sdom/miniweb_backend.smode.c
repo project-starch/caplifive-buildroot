@@ -296,8 +296,8 @@ static void main(void) {
 
 	/* CGI domains */
 	// note that this part of code can only be executed once in multiple domain re-entry 
-	dom_id_t cgi_success_dom_id = create_dom_from_region(cgi_success_region_base);
-	dom_id_t cgi_fail_dom_id = create_dom_from_region(cgi_fail_region_base);
+	cgi_success_dom_id = create_dom_from_region(cgi_success_region_base);
+	cgi_fail_dom_id = create_dom_from_region(cgi_fail_region_base);
 
 	sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_SHARE,
 			cgi_success_dom_id, socket_fd_region, 0, 0, 0, 0);

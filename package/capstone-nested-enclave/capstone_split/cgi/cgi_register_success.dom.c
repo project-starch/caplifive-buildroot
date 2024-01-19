@@ -37,7 +37,9 @@ void putchar_to_socket(unsigned ch) {
         socket_region_ptr[ptr_outer_offset] = 0;
     }
 
-    socket_region_ptr[ptr_outer_offset] |= (ch << (ptr_inner_offset * 8));
+    unsigned current_buffer = socket_region_ptr[ptr_outer_offset];
+    unsigned next_buffer = current_buffer | (ch << (ptr_inner_offset * 8));
+    socket_region_ptr[ptr_outer_offset] = next_buffer;
     ptr_inner_offset += 1;
     response_size += 1;
 
@@ -47,19 +49,9 @@ void putchar_to_socket(unsigned ch) {
     }
 }
 
-unsigned unsigned_to_char_reverse(unsigned num, unsigned* num_char) {
-    unsigned i = 0, d;
-    while (num != 0) {
-        d = num / 10;
-        num_char[i] = num - 10 * d + '0';
-        num = d;
-        i += 1;
-    }
-    return i;
-}
-
 void register_success(void) {
     socket_region_ptr = (unsigned *)shared_region + SIZE_OF_ULL;
+    response_size = 0;
 
     /* parsing the packet and find the name */
     unsigned name[16];
@@ -67,7 +59,6 @@ void register_success(void) {
     unsigned outer_i = 0, inner_i = 0;
     unsigned find_target = 0;
     unsigned name_index = 0;
-    C_PRINT(0xdadada);
     // copy the name between '=' and '&'
     while (find_target != 2) {
         for (inner_i = 0; inner_i < 8; inner_i += 1) {
@@ -96,7 +87,15 @@ void register_success(void) {
     /* size of the content */
     unsigned content_size = name_index + CONTENT_FIXED_SIZE;
     unsigned content_size_char[16];
-    unsigned content_size_char_len = unsigned_to_char_reverse(content_size, content_size_char);
+
+    unsigned cs_char_index = 0, num = content_size, res;
+    while (num != 0) {
+        res = num / 10;
+        content_size_char[cs_char_index] = num - 10 * res + '0';
+        num = res;
+        cs_char_index += 1;
+    }
+    unsigned content_size_char_len = cs_char_index;
 
     /* prepare the response packet */
     ptr_outer_offset = 0;
@@ -270,6 +269,7 @@ unsigned handle_dpi(unsigned func, void *arg) {
     switch(func) {
         case CAPSTONE_DPI_CALL:
             dpi_call();
+            handled = 1;
             break;
         case CAPSTONE_DPI_REGION_SHARE:
             dpi_share_region(arg);
@@ -280,7 +280,7 @@ unsigned handle_dpi(unsigned func, void *arg) {
     return handled;
 }
 
-__domentry __domreentry void cgi_entry(__domret void *ra, unsigned func, unsigned *buf) {
+__domentry __domreentry void cgi_success_entry(__domret void *ra, unsigned func, unsigned *buf) {
     __domret void *caller_dom = ra;
     
     unsigned handled = handle_dpi(func, buf);
@@ -290,5 +290,5 @@ __domentry __domreentry void cgi_entry(__domret void *ra, unsigned func, unsigne
     }
     ra = caller_dom;
 
-    __domreturn(ra, __cgi_entry_reentry, 0);
+    __domreturn(ra, __cgi_success_entry_reentry, 0);
 }
