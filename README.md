@@ -131,8 +131,10 @@ Use `wget` with busybox to test the web server, e.g.
     busybox wget -O - http://localhost:8888/register.html
 
 Or you can send POST request and let it be handled by CGI programs running in nested domains:
-(If you have a web browser, just click the two bottoms on register.html.)
+(If you have a web browser, just fill the form and click one of the two bottoms on `/www/register.html`.)
 
     busybox wget --post-data "name=Alex&email=alex@email.com" -O - http://localhost:8888/cgi/cgi_register_success.dom
-    
+
+    busybox wget --post-data "name=Bob&email=bob@email.com" -O - http://localhost:8888/cgi/cgi_register_success.dom
+
     busybox wget --post-data "name=Alex&email=alex@email.com" -O - http://localhost:8888/cgi/cgi_register_fail.dom
