@@ -7,6 +7,7 @@
 #include <arpa/inet.h>
 #include <fcntl.h>
 #include <pthread.h>
+#include <assert.h>
 #include "lib/libcapstone.h"
 
 #define QUEUE_SIZE 16
@@ -180,9 +181,13 @@ int main() {
     // long: 64 bits
     // long long: 64 bits
     print_nobuf("Size of short: %zu bytes\n", sizeof(short));
+    assert(sizeof(short) == 2);
     print_nobuf("Size of int: %zu bytes\n", sizeof(int));
+    assert(sizeof(int) == 4);
     print_nobuf("Size of long: %zu bytes\n", sizeof(long));
+    assert(sizeof(long) == 8);
     print_nobuf("Size of long long: %zu bytes\n", sizeof(long long));
+    assert(sizeof(long long) == 8);
 
     /* domain creation, shared regions setup */
     dom_id = create_dom("/test-domains/sbi.dom", "/nested/capstone_split/miniweb_backend.smode");
