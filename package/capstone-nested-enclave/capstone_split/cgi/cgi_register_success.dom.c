@@ -20,7 +20,7 @@
 */
 
 #define SIZE_OF_ULL 8
-#define CONTENT_FIXED_SIZE 58
+#define CONTENT_FIXED_SIZE 83
 
 #define C_PRINT(v) __asm__ volatile(".insn r 0x5b, 0x1, 0x43, x0, %0, x0" :: "r"(v))
 
@@ -186,19 +186,42 @@ void register_success(void) {
     putchar_to_socket('l');
     putchar_to_socket('\n');
     putchar_to_socket('\n');
-    // <html><body>Hello, %s. You are now registered.</body></html>
+    // <!DOCTYPE html>\n
+    putchar_to_socket('<');
+    putchar_to_socket('!');
+    putchar_to_socket('D');
+    putchar_to_socket('O');
+    putchar_to_socket('C');
+    putchar_to_socket('T');
+    putchar_to_socket('Y');
+    putchar_to_socket('P');
+    putchar_to_socket('E');
+    putchar_to_socket(' ');
+    putchar_to_socket('h');
+    putchar_to_socket('t');
+    putchar_to_socket('m');
+    putchar_to_socket('l');
+    putchar_to_socket('>');
+    putchar_to_socket('\n');
+    // <html>\n<body>\n    Hello, %s. You are now registered.\n</body>\n</html>\n
     putchar_to_socket('<');
     putchar_to_socket('h');
     putchar_to_socket('t');
     putchar_to_socket('m');
     putchar_to_socket('l');
     putchar_to_socket('>');
+    putchar_to_socket('\n');
     putchar_to_socket('<');
     putchar_to_socket('b');
     putchar_to_socket('o');
     putchar_to_socket('d');
     putchar_to_socket('y');
     putchar_to_socket('>');
+    putchar_to_socket('\n');
+    putchar_to_socket(' ');
+    putchar_to_socket(' ');
+    putchar_to_socket(' ');
+    putchar_to_socket(' ');
     putchar_to_socket('H');
     putchar_to_socket('e');
     putchar_to_socket('l');
@@ -236,6 +259,7 @@ void register_success(void) {
     putchar_to_socket('e');
     putchar_to_socket('d');
     putchar_to_socket('.');
+    putchar_to_socket('\n');
     putchar_to_socket('<');
     putchar_to_socket('/');
     putchar_to_socket('b');
@@ -243,6 +267,7 @@ void register_success(void) {
     putchar_to_socket('d');
     putchar_to_socket('y');
     putchar_to_socket('>');
+    putchar_to_socket('\n');
     putchar_to_socket('<');
     putchar_to_socket('/');
     putchar_to_socket('h');
@@ -250,6 +275,7 @@ void register_success(void) {
     putchar_to_socket('m');
     putchar_to_socket('l');
     putchar_to_socket('>');
+    putchar_to_socket('\n');
 
     /* set the socket packet size */
     *((unsigned *)shared_region) = response_size;
