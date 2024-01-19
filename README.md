@@ -85,5 +85,15 @@ Build and run QEMU as mentioned in the [Build Instructions](#build-instructions)
 * run `mount -t hugetlbfs nodev /mnt/huge && echo 2048 > /sys/kernel/mm/hugepages/hugepages-2048kB/nr_hugepages`
 * go to the *root (/)* directory
 * run `./dpdk-chat_server -l 0 -n 4 -- -p 3 -n <nr_of_domains>`
+* while *dpdk-chat_server* is running, the internal command line provides commands such as *send_to_domain* or *receive_from_domain* that can communicate with any of the initialized domains based on their IDs (which usually start from 0)
 
 The `dpdp_server` should be part of the *overlay* directory. If not, go the dpdk directory, build the apptainer image from there called *dpdk-cross-compile.def* and then run `./<name_of_the_sif_image> build` or `./<name_of_the_sif_image> rebuild` (if you already executed the build command). After the build copy the *dpdk-chat_server* executable from the *dpdk/dpdk-stable-22.11.3/riscv-build/examples* directory to the *overlay* directory.
+
+### DPDK case study baseline usage
+
+In order to test the DPDK baseline testing what is needed is QEMU to run with a number vcpus equal to the `number_of_secondary_processes + 1`. The *+1* is needed for the primary process. All DPDK processes use a core and they don't yeild.
+After runnning QEMU, running the baseline is similar to the original DPDK functionality for [basic multi-process functionality](https://doc.dpdk.org/guides-22.11/sample_app_ug/multi_process.html). The name of the executables in our case is *dpdk-chat_server* for the primary process and *dpdk-chat_client* for the secondary process(es).
+
+In orde to use some setup needs to be done beforehand, similar to the captainer version:
+* install the *capstone.ko* kernel drive, in order to allow captainer functionalities.
+* run `mount -t hugetlbfs nodev /mnt/huge && echo 2048 > /sys/kernel/mm/hugepages/hugepages-2048kB/nr_hugepages`
