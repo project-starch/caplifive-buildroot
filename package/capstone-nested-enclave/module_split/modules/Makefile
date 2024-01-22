@@ -1,4 +1,4 @@
-obj-m += miniweb_backend.o cgi_register_success.o cgi_register_fail.o
+obj-m += cgi_register_success.o cgi_register_fail.o miniweb_backend.o
 ccflags-y := -Wno-declaration-after-statement -std=gnu99
 
 .PHONY: all clean
