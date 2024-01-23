@@ -7,7 +7,6 @@
 #include <linux/uaccess.h>
 #include <linux/string.h>
 #include <linux/mm.h>
-#include <asm/io.h>
 #include <linux/miscdevice.h>
 
 #define HTML_FD_UNDEFINED 0
