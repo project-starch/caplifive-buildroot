@@ -7,6 +7,7 @@
 #include <linux/uaccess.h>
 #include <linux/string.h>
 #include <linux/mm.h>
+#include <asm/io.h>
 #include <linux/miscdevice.h>
 
 #define HTML_FD_UNDEFINED 0
@@ -78,7 +79,6 @@ static void handle_404_preprocessing(void) {
 }
 
 static void request_reprocessing(void) {
-    printk("request reprocessing\n");
 	char lineBuffer[256];
 
 	socket_fd_region_ptr = socket_fd_region_base + sizeof(unsigned long long);
@@ -103,9 +103,6 @@ static void request_reprocessing(void) {
 	}
 	url[j] = '\0';
 	unsigned long url_length = j - 1;
-
-    printk("method: %s\n", method);
-    printk("url: %s\n", url);
 
 	if (strcmp(method, "POST") == 0) {
 		if (strncmp(url, "/cgi/", 5) == 0) {
@@ -163,9 +160,7 @@ static void request_handle_200(void) {
 }
 
 static void backend_entry(void) {
-    printk("backend entry\n");
     unsigned long html_fd_status = *((unsigned long *)html_fd_region_base);
-    printk("html_fd_status: %lu\n", html_fd_status);
 
     switch (html_fd_status) {
         case HTML_FD_UNDEFINED:
@@ -206,15 +201,14 @@ static struct miscdevice nested_dev = {
 };
 
 static int __init nested_init(void) {
-    shared_kernel_memory = vmalloc(SHARED_MEMORY_SIZE);
-    if (!shared_kernel_memory) {
-        pr_err("Failed to allocate memory.\n");
-        return -ENOMEM;
-    }
+	shared_kernel_memory = kmalloc(SHARED_MEMORY_SIZE, GFP_DMA);
+	if (!shared_kernel_memory) {
+		pr_err("Failed to allocate kernel buffer.\n");
+		return -ENOMEM;
+	}
+
     socket_fd_region_base = shared_kernel_memory;
     html_fd_region_base = socket_fd_region_base + HTML_FD_OFFSET;
-    printk("socket_fd_region_base: %p\n", socket_fd_region_base);
-    printk("html_fd_region_base: %p\n", html_fd_region_base);
 
 	if (misc_register(&nested_dev)) {
 		pr_alert("Failed to register device\n");

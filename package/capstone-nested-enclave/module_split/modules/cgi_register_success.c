@@ -16,6 +16,7 @@ void cgi_register_success(char *socket_fd_region_base) {
     while (socket_region_ptr[i] != '=') {
         i += 1;
     }
+    i += 1;
     while (socket_region_ptr[i] != '&') {
         name[name_index] = socket_region_ptr[i];
         i += 1;
