@@ -187,6 +187,28 @@ static void ioctl_create_region(struct ioctl_region_create_args* __user args) {
 	copy_to_user(args, &m_args, sizeof(struct ioctl_region_create_args));
 }
 
+static void ioctl_revoke_region(struct ioctl_region_revoke_args* __user args) {
+	struct ioctl_region_revoke_args m_args;
+	copy_from_user(&m_args, args, sizeof(struct ioctl_region_revoke_args));
+
+	struct sbiret sbi_res = sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_REVOKE,
+				m_args.region_id, 0, 0, 0, 0, 0);
+	m_args.retval = sbi_res.value;
+
+	copy_to_user(args, &m_args, sizeof(struct ioctl_region_revoke_args));
+}
+
+static void ioctl_share_region_annotated(struct ioctl_region_share_annotated_args* __user args) {
+	struct ioctl_region_share_annotated_args m_args;
+	copy_from_user(&m_args, args, sizeof(struct ioctl_region_share_annotated_args));
+
+	struct sbiret sbi_res = sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_SHARE,
+				m_args.dom_id, m_args.region_id, m_args.annotation_perm, m_args.annotation_rev, 0, 0);
+	m_args.retval = sbi_res.value;
+
+	copy_to_user(args, &m_args, sizeof(struct ioctl_region_share_annotated_args));
+}
+
 unsigned long share_region(dom_id_t dom_id, region_id_t region_id) {
 	struct sbiret sbi_res = sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_SHARE,
 				dom_id, region_id, 0, 0, 0, 0);
@@ -272,6 +294,12 @@ static long device_ioctl(struct file* file,
 			break;
 		case IOCTL_DOM_SCHEDULE:
 			ioctl_schedule_dom((struct ioctl_dom_sched_args* __user)ioctl_param);
+			break;
+		case IOCTL_REGION_SHARE_ANNOTATED:
+			ioctl_share_region_annotated((struct ioctl_region_share_annotated_args* __user)ioctl_param);
+			break;
+		case IOCTL_REGION_REVOKE:
+			ioctl_revoke_region((struct ioctl_region_revoke_args* __user)ioctl_param);
 			break;
 		default:
 			pr_info("Unrecognised IOCTL command %u\n", ioctl_num);

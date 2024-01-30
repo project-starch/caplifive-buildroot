@@ -368,6 +368,17 @@ region_id_t create_region(unsigned long len) {
     return args.region_id;
 }
 
+void shared_region_annotated(dom_id_t dom_id, region_id_t region_id, unsigned long annotation_perm, unsigned long annotation_rev) {
+    struct ioctl_region_share_annotated_args args = {
+        .dom_id = dom_id,
+        .region_id = region_id,
+        .annotation_perm = annotation_perm,
+        .annotation_rev = annotation_rev,
+        .retval = 0
+    };
+    ioctl(dev_fd, IOCTL_REGION_SHARE_ANNOTATED, (unsigned long)&args);
+}
+
 void share_region(dom_id_t dom_id, region_id_t region_id) {
     struct ioctl_region_share_args args = {
         .dom_id = dom_id,
@@ -375,6 +386,14 @@ void share_region(dom_id_t dom_id, region_id_t region_id) {
         .retval = 0
     };
     ioctl(dev_fd, IOCTL_REGION_SHARE, (unsigned long)&args);
+}
+
+void revoke_region(region_id_t region_id) {
+    struct ioctl_region_revoke_args args = {
+        .region_id = region_id,
+        .retval = 0
+    };
+    ioctl(dev_fd, IOCTL_REGION_REVOKE, (unsigned long)&args);
 }
 
 void *map_region(region_id_t region_id, unsigned long len) {
