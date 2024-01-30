@@ -10,6 +10,28 @@
 #include <assert.h>
 #include "lib/libcapstone.h"
 
+#define CAPSTONE_ANNOTATION_PERM_IN 0x0
+#define CAPSTONE_ANNOTATION_PERM_INOUT 0x1
+#define CAPSTONE_ANNOTATION_PERM_OUT 0x2
+#define CAPSTONE_ANNOTATION_PERM_EXE 0x3
+#define CAPSTONE_ANNOTATION_PERM_FULL 0x4
+
+#define CAPSTONE_ANNOTATION_REV_DEFAULT 0x0
+#define CAPSTONE_ANNOTATION_REV_BORROWED 0x1
+#define CAPSTONE_ANNOTATION_REV_SHARED 0x2
+#define CAPSTONE_ANNOTATION_REV_TRANSFERRED 0x3
+
+/* metadata region layout:
+ * status::unsigned long
+ * html/path length::unsigned long
+ * socket/response length::unsigned long long
+ * html file path::char[path length]
+*/
+#define METADATA_STATUS_OFFSET 0
+#define METADATA_HTML_LEN_OFFSET sizeof(unsigned long)
+#define METADATA_SOCKET_LEN_OFFSET (2 * sizeof(unsigned long))
+#define METADATA_HTML_PATH_OFFSET (2 * sizeof(unsigned long) + sizeof(unsigned long long))
+
 #define QUEUE_SIZE 16
 #define THREAD_SIZE 1 // 1 thread for now
 #define CONNECTION_NUM 3
@@ -22,7 +44,9 @@
 #define HTML_FD_CGI 3
 
 dom_id_t dom_id;
-char *socket_fd_region_base, *html_fd_region_base;
+// borrowed regions
+region_id_t socket_fd_region, response_region, html_fd_region;
+char *socket_fd_region_base, *response_region_base, *html_fd_region_base, *metadata_region_base;
 
 /* queue operations*/
 typedef struct {
@@ -69,29 +93,25 @@ void* workerThread(void *arg) {
   while(1) {
     int fd = dequeue(q);
 
-    // read from socket
-    // socket_fd_region: (unsigned long long) socket_fd_len, (char*) content (socket file content)
-    unsigned long long read_size_socket_fd;
-    char* ptr = socket_fd_region_base + sizeof(read_size_socket_fd);
-    read_size_socket_fd = read(fd, ptr, 4096 - sizeof(read_size_socket_fd));
-    memcpy(socket_fd_region_base, &read_size_socket_fd, sizeof(read_size_socket_fd));
+    char* ptr = socket_fd_region_base;
+    unsigned long long read_size_socket_fd = read(fd, ptr, 4096);
+    memcpy(metadata_region_base + METADATA_SOCKET_LEN_OFFSET, &read_size_socket_fd, sizeof(read_size_socket_fd));
     print_nobuf("read_size_socket_fd: %llu\n", read_size_socket_fd);
 
-    // provide html file accordingly
-    // html_fd_region: (unsigned long) html_fd_status, (unsigned long) html_fd_len, (char*) content (path or file content)
     unsigned long html_fd_status = HTML_FD_UNDEFINED;
-    memcpy(html_fd_region_base, &html_fd_status, sizeof(html_fd_status));
+    memcpy(metadata_region_base + METADATA_STATUS_OFFSET, &html_fd_status, sizeof(html_fd_status));
     print_nobuf("enter backend: for preprocessing\n");
     call_dom(dom_id);
     print_nobuf("exit backend: return from preprocessing\n");
+
     unsigned long html_fd_len; // also server as the path length
-    memcpy(&html_fd_len, html_fd_region_base + sizeof(html_fd_status), sizeof(html_fd_len));
-    memcpy(&html_fd_status, html_fd_region_base, sizeof(html_fd_status));
+    memcpy(&html_fd_len, metadata_region_base + METADATA_HTML_LEN_OFFSET, sizeof(html_fd_len));
+    memcpy(&html_fd_status, metadata_region_base + METADATA_STATUS_OFFSET, sizeof(html_fd_status));
     
     if (html_fd_status == HTML_FD_200RESPONSE) {
         print_nobuf("Backend request for 200 response\n");
         char* file_path = malloc(html_fd_len);
-        memcpy(file_path, html_fd_region_base + sizeof(html_fd_status) + sizeof(html_fd_len), html_fd_len);
+        memcpy(file_path, metadata_region_base + METADATA_HTML_PATH_OFFSET, html_fd_len);
         char prefix[] = "/nested/capstone_split/www";
         char* html_path = malloc(strlen(prefix) + html_fd_len);
         strcpy(html_path, prefix);
@@ -102,24 +122,27 @@ void* workerThread(void *arg) {
         if (html_fd == -1) {
             // send 404 if file not found as well
             html_fd_status = HTML_FD_404RESPONSE;
-            memcpy(html_fd_region_base, &html_fd_status, sizeof(html_fd_status));
+            memcpy(metadata_region_base + METADATA_STATUS_OFFSET, &html_fd_status, sizeof(html_fd_status));
             print_nobuf("Couldn't open html file\n");
         }
         else {
-            ptr = html_fd_region_base + sizeof(html_fd_status) + sizeof(html_fd_len);
-            unsigned long read_size_html_fd = read(html_fd, ptr, 4096 - sizeof(html_fd_status) - sizeof(html_fd_len));
-            memcpy(html_fd_region_base + sizeof(html_fd_status), &read_size_html_fd, sizeof(read_size_html_fd));
+            ptr = html_fd_region_base;
+            unsigned long read_size_html_fd = read(html_fd, ptr, 4096);
+            memcpy(metadata_region_base + METADATA_HTML_LEN_OFFSET, &read_size_html_fd, sizeof(read_size_html_fd));
             print_nobuf("read_size_html_fd: %d\n", read_size_html_fd);
             close(html_fd);
 
             print_nobuf("enter backend: 200 response\n");
             call_dom(dom_id);
             print_nobuf("exit backend: return from 200 response\n");
+            
             // sync socket_fd_region to socket fd
+            revoke_region(response_region);
+
             unsigned long long socket_fd_region_len;
-            memcpy(&socket_fd_region_len, socket_fd_region_base, sizeof(socket_fd_region_len));
+            memcpy(&socket_fd_region_len, metadata_region_base + METADATA_SOCKET_LEN_OFFSET, sizeof(socket_fd_region_len));
             print_nobuf("socket_fd_region_len: %llu\n", socket_fd_region_len);
-            ptr = socket_fd_region_base + sizeof(socket_fd_region_len);
+            ptr = response_region_base;
             write(fd, ptr, socket_fd_region_len);
             close(fd);
         }
@@ -134,20 +157,23 @@ void* workerThread(void *arg) {
             print_nobuf("Couldn't open 404Response.txt\n");
         }
         else {
-            ptr = html_fd_region_base + sizeof(html_fd_status);
-            unsigned long read_size_html_fd = read(error_fd, ptr, 4096 - sizeof(html_fd_status));
-            memcpy(html_fd_region_base + sizeof(html_fd_status), &read_size_html_fd, sizeof(read_size_html_fd));
+            ptr = html_fd_region_base;
+            unsigned long read_size_html_fd = read(error_fd, ptr, 4096);
+            memcpy(metadata_region_base + METADATA_HTML_LEN_OFFSET, &read_size_html_fd, sizeof(read_size_html_fd));
             print_nobuf("read_size_html_fd: %d\n", read_size_html_fd);
             close(error_fd);
 
             print_nobuf("enter backend: 404 response\n");
             call_dom(dom_id);
             print_nobuf("exit backend: return from 404 response\n");
+
             // sync socket_fd_region to socket fd
+            revoke_region(response_region);
+
             unsigned long long socket_fd_region_len;
-            memcpy(&socket_fd_region_len, socket_fd_region_base, sizeof(socket_fd_region_len));
+            memcpy(&socket_fd_region_len, metadata_region_base + METADATA_SOCKET_LEN_OFFSET, sizeof(socket_fd_region_len));
             print_nobuf("socket_fd_region_len: %llu\n", socket_fd_region_len);
-            ptr = socket_fd_region_base + sizeof(socket_fd_region_len);
+            ptr = response_region_base;
             write(fd, ptr, socket_fd_region_len);
             close(fd);
         }
@@ -157,10 +183,12 @@ void* workerThread(void *arg) {
         print_nobuf("POST request is handled by CGI.\n");
 
         // sync socket_fd_region to socket fd
+        revoke_region(response_region);
+
         unsigned long long socket_fd_region_len;
-        memcpy(&socket_fd_region_len, socket_fd_region_base, sizeof(socket_fd_region_len));
+        memcpy(&socket_fd_region_len, metadata_region_base + METADATA_SOCKET_LEN_OFFSET, sizeof(socket_fd_region_len));
         print_nobuf("socket_fd_region_len: %llu\n", socket_fd_region_len);
-        ptr = socket_fd_region_base + sizeof(socket_fd_region_len);
+        ptr = response_region_base;
         write(fd, ptr, socket_fd_region_len);
         close(fd);
     }
@@ -175,45 +203,38 @@ void* workerThread(void *arg) {
 int main() {
     capstone_init();
 
-    /* for this case study to run, we have several assumptions about data type sizes*/
-    // short: 16 bits
-    // int: 32 bits
-    // long: 64 bits
-    // long long: 64 bits
-    print_nobuf("Size of short: %zu bytes\n", sizeof(short));
-    assert(sizeof(short) == 2);
-    print_nobuf("Size of int: %zu bytes\n", sizeof(int));
-    assert(sizeof(int) == 4);
     print_nobuf("Size of long: %zu bytes\n", sizeof(long));
     assert(sizeof(long) == 8);
     print_nobuf("Size of long long: %zu bytes\n", sizeof(long long));
     assert(sizeof(long long) == 8);
 
-    /* domain creation, shared regions setup */
     dom_id = create_dom("/test-domains/sbi.dom", "/nested/capstone_split/miniweb_backend.smode");
     print_nobuf("SBI domain created with ID %lu\n", dom_id);
 
-    // this region is shared among miniweb_frontend.user, miniweb_backend.smode.ko and cgis
-    region_id_t socket_fd_region = create_region(4096);
+    socket_fd_region = create_region(4096);
     print_nobuf("Shared region created with ID %lu\n", socket_fd_region);
-    // html_fd_region is used for both data and control
-    // data: the html file content, passed from miniweb_frontend.user to miniweb_backend.smode.ko
-    // control: path of the html file, used between miniweb_frontend.user and miniweb_backend.smode.ko
-    region_id_t html_fd_region = create_region(4096);
+
+    response_region = create_region(4096);
+    print_nobuf("Shared region created with ID %lu\n", response_region);
+    
+    html_fd_region = create_region(4096);
     print_nobuf("Shared region created with ID %lu\n", html_fd_region);
-    // cgi_success_region
+
+    region_id_t metadata_region = create_region(4096);
+    print_nobuf("Shared region created with ID %lu\n", metadata_region);
+    
     region_id_t cgi_success_region = create_region(CGI_ELF_REGION_SIZE);
     print_nobuf("Shared region created with ID %lu\n", cgi_success_region);
-    // cgi_fail_region
+    
     region_id_t cgi_fail_region = create_region(CGI_ELF_REGION_SIZE);
     print_nobuf("Shared region created with ID %lu\n", cgi_fail_region);
 
     socket_fd_region_base = map_region(socket_fd_region, 4096);
+    response_region_base = map_region(response_region, 4096);
     html_fd_region_base = map_region(html_fd_region, 4096);
+    metadata_region_base = map_region(metadata_region, 4096);
 
     /* cgi content set up */ 
-    // no metadata is stored in cgi-related regions
-    // and the passing of the region is one-time, one-way only
     char* cgi_success_region_base = map_region(cgi_success_region, CGI_ELF_REGION_SIZE);
 
     char cgi_success_path[] = "/nested/capstone_split/cgi/cgi_register_success.dom";
@@ -243,10 +264,12 @@ int main() {
     }
 
     /* share regions */
-    share_region(dom_id, socket_fd_region);
-    share_region(dom_id, html_fd_region);
-    share_region(dom_id, cgi_success_region);
-    share_region(dom_id, cgi_fail_region);
+    shared_region_annotated(dom_id, socket_fd_region, CAPSTONE_ANNOTATION_PERM_IN, CAPSTONE_ANNOTATION_REV_BORROWED);
+    shared_region_annotated(dom_id, response_region, CAPSTONE_ANNOTATION_PERM_OUT, CAPSTONE_ANNOTATION_REV_BORROWED);
+    shared_region_annotated(dom_id, html_fd_region, CAPSTONE_ANNOTATION_PERM_IN, CAPSTONE_ANNOTATION_REV_BORROWED);
+    shared_region_annotated(dom_id, metadata_region, CAPSTONE_ANNOTATION_PERM_INOUT, CAPSTONE_ANNOTATION_REV_SHARED);
+    shared_region_annotated(dom_id, cgi_success_region, CAPSTONE_ANNOTATION_PERM_FULL, CAPSTONE_ANNOTATION_REV_TRANSFERRED);
+    shared_region_annotated(dom_id, cgi_fail_region, CAPSTONE_ANNOTATION_PERM_FULL, CAPSTONE_ANNOTATION_REV_TRANSFERRED);
 
     /* socket setup */
     queue* q = queueCreate();
@@ -289,6 +312,8 @@ int main() {
         }
     }
 
+    revoke_region(socket_fd_region);
+    revoke_region(html_fd_region);
     capstone_cleanup();
 
     return 0;
