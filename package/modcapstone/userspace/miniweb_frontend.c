@@ -100,6 +100,10 @@ void* workerThread(void *arg) {
 
     unsigned long html_fd_status = HTML_FD_UNDEFINED;
     memcpy(metadata_region_base + METADATA_STATUS_OFFSET, &html_fd_status, sizeof(html_fd_status));
+    
+    shared_region_annotated(dom_id, socket_fd_region, CAPSTONE_ANNOTATION_PERM_IN, CAPSTONE_ANNOTATION_REV_BORROWED);
+    shared_region_annotated(dom_id, response_region, CAPSTONE_ANNOTATION_PERM_OUT, CAPSTONE_ANNOTATION_REV_BORROWED);
+    
     print_nobuf("enter backend: for preprocessing\n");
     call_dom(dom_id);
     print_nobuf("exit backend: return from preprocessing\n");
@@ -132,13 +136,17 @@ void* workerThread(void *arg) {
             print_nobuf("read_size_html_fd: %d\n", read_size_html_fd);
             close(html_fd);
 
+            revoke_region(socket_fd_region);
+            shared_region_annotated(dom_id, html_fd_region, CAPSTONE_ANNOTATION_PERM_IN, CAPSTONE_ANNOTATION_REV_BORROWED);
+
             print_nobuf("enter backend: 200 response\n");
             call_dom(dom_id);
             print_nobuf("exit backend: return from 200 response\n");
+
+            revoke_region(html_fd_region);
+            revoke_region(response_region);
             
             // sync socket_fd_region to socket fd
-            revoke_region(response_region);
-
             unsigned long long socket_fd_region_len;
             memcpy(&socket_fd_region_len, metadata_region_base + METADATA_SOCKET_LEN_OFFSET, sizeof(socket_fd_region_len));
             print_nobuf("socket_fd_region_len: %llu\n", socket_fd_region_len);
@@ -163,13 +171,17 @@ void* workerThread(void *arg) {
             print_nobuf("read_size_html_fd: %d\n", read_size_html_fd);
             close(error_fd);
 
+            revoke_region(socket_fd_region);
+            shared_region_annotated(dom_id, html_fd_region, CAPSTONE_ANNOTATION_PERM_IN, CAPSTONE_ANNOTATION_REV_BORROWED);
+
             print_nobuf("enter backend: 404 response\n");
             call_dom(dom_id);
             print_nobuf("exit backend: return from 404 response\n");
 
-            // sync socket_fd_region to socket fd
+            revoke_region(html_fd_region);
             revoke_region(response_region);
 
+            // sync socket_fd_region to socket fd
             unsigned long long socket_fd_region_len;
             memcpy(&socket_fd_region_len, metadata_region_base + METADATA_SOCKET_LEN_OFFSET, sizeof(socket_fd_region_len));
             print_nobuf("socket_fd_region_len: %llu\n", socket_fd_region_len);
@@ -182,9 +194,10 @@ void* workerThread(void *arg) {
     if (html_fd_status == HTML_FD_CGI) {
         print_nobuf("POST request is handled by CGI.\n");
 
-        // sync socket_fd_region to socket fd
+        revoke_region(socket_fd_region);
         revoke_region(response_region);
 
+        // sync socket_fd_region to socket fd
         unsigned long long socket_fd_region_len;
         memcpy(&socket_fd_region_len, metadata_region_base + METADATA_SOCKET_LEN_OFFSET, sizeof(socket_fd_region_len));
         print_nobuf("socket_fd_region_len: %llu\n", socket_fd_region_len);
@@ -264,9 +277,6 @@ int main() {
     }
 
     /* share regions */
-    shared_region_annotated(dom_id, socket_fd_region, CAPSTONE_ANNOTATION_PERM_IN, CAPSTONE_ANNOTATION_REV_BORROWED);
-    shared_region_annotated(dom_id, response_region, CAPSTONE_ANNOTATION_PERM_OUT, CAPSTONE_ANNOTATION_REV_BORROWED);
-    shared_region_annotated(dom_id, html_fd_region, CAPSTONE_ANNOTATION_PERM_IN, CAPSTONE_ANNOTATION_REV_BORROWED);
     shared_region_annotated(dom_id, metadata_region, CAPSTONE_ANNOTATION_PERM_INOUT, CAPSTONE_ANNOTATION_REV_SHARED);
     shared_region_annotated(dom_id, cgi_success_region, CAPSTONE_ANNOTATION_PERM_FULL, CAPSTONE_ANNOTATION_REV_TRANSFERRED);
     shared_region_annotated(dom_id, cgi_fail_region, CAPSTONE_ANNOTATION_PERM_FULL, CAPSTONE_ANNOTATION_REV_TRANSFERRED);
@@ -312,8 +322,6 @@ int main() {
         }
     }
 
-    revoke_region(socket_fd_region);
-    revoke_region(html_fd_region);
     capstone_cleanup();
 
     return 0;
