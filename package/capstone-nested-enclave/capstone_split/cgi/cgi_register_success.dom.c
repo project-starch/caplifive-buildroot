@@ -11,7 +11,7 @@
 
 /* Assumptions of this Capstone-CC compiled program:
  * 1. The machine is little endian;
- * 2. The size of unsigned long long in C is 8 bytes;
+ * 2. The size of unsigned long long and unsigned long in C are 8 bytes;
  * 3. The size of unsigned in Capstone-CC is 8 bytes;
  * 4. Pointer arithmetic in Capstone-CC is byte granular;
  * 5. Sign extension is always 0 extension in Capstone-CC;
@@ -21,12 +21,17 @@
 
 #define SIZE_OF_ULL 8
 #define CONTENT_FIXED_SIZE 83
+#define METADATA_SOCKET_LEN_OFFSET_UL 2
+
+#define MAX_REGION_N 4
+#define CGI_REGION_POP_NUM 2
 
 #define C_PRINT(v) __asm__ volatile(".insn r 0x5b, 0x1, 0x43, x0, %0, x0" :: "r"(v))
 
-void* shared_region;
+void* regions[MAX_REGION_N];
+unsigned region_n = 0;
 
-unsigned* socket_region_ptr;
+__linear unsigned* response_region_ptr;
 unsigned response_size;
 unsigned ptr_outer_offset;
 unsigned ptr_inner_offset;
@@ -34,12 +39,12 @@ unsigned ptr_inner_offset;
 void putchar_to_socket(unsigned ch) {
     // zero 8 bytes at the beginning
     if (ptr_inner_offset == 0) {
-        socket_region_ptr[ptr_outer_offset] = 0;
+        response_region_ptr[ptr_outer_offset] = 0;
     }
 
-    unsigned current_buffer = socket_region_ptr[ptr_outer_offset];
+    unsigned current_buffer = response_region_ptr[ptr_outer_offset];
     unsigned next_buffer = current_buffer | (ch << (ptr_inner_offset * 8));
-    socket_region_ptr[ptr_outer_offset] = next_buffer;
+    response_region_ptr[ptr_outer_offset] = next_buffer;
     ptr_inner_offset += 1;
     response_size += 1;
 
@@ -50,7 +55,12 @@ void putchar_to_socket(unsigned ch) {
 }
 
 void register_success(void) {
-    socket_region_ptr = (unsigned *)shared_region + SIZE_OF_ULL;
+    void* metadata_region = regions[0];
+    void* socket_region = regions[1];
+    void* response_region = regions[2];
+
+    unsigned* socket_region_ptr = (unsigned *)socket_region;
+    response_region_ptr = (unsigned *)response_region;
     response_size = 0;
 
     /* parsing the packet and find the name */
@@ -278,15 +288,20 @@ void register_success(void) {
     putchar_to_socket('\n');
 
     /* set the socket packet size */
-    *((unsigned *)shared_region) = response_size;
+    unsigned* shared_region = (unsigned *)metadata_region;
+    shared_region[METADATA_SOCKET_LEN_OFFSET_UL] = response_size;
 }
 
 void dpi_call(void) {
     register_success();
+
+    __delin(response_region_ptr);
+    region_n -= CGI_REGION_POP_NUM;
 }
 
 void dpi_share_region(void *region) {
-    shared_region = region;
+    regions[region_n] = region;
+    region_n += 1;
 }
 
 unsigned handle_dpi(unsigned func, void *arg) {
