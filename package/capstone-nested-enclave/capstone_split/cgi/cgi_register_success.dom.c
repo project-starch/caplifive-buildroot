@@ -31,7 +31,7 @@
 void* regions[MAX_REGION_N];
 unsigned region_n = 0;
 
-__linear unsigned* response_region_ptr;
+unsigned* response_region_ptr;
 unsigned response_size;
 unsigned ptr_outer_offset;
 unsigned ptr_inner_offset;
@@ -295,7 +295,8 @@ void register_success(void) {
 void dpi_call(void) {
     register_success();
 
-    __delin(response_region_ptr);
+    __linear void* lin = response_region_ptr;
+    __delin(lin);
     region_n -= CGI_REGION_POP_NUM;
 }
 

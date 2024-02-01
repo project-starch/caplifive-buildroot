@@ -46,7 +46,7 @@ static dom_id_t create_dom_from_region(char* elf_region_base) {
 	Elf64_Ehdr *elf_header = (Elf64_Ehdr *)elf_region_base;
 
 	if (elf_header->e_machine != EM_RISCV) {
-		C_PRINT(0xdeadbeef);
+		C_PRINT(0xdeadbeefULL);
 	}
 
 	Elf64_Phdr *phdrs = (Elf64_Phdr*)((void*)elf_header + elf_header->e_phoff);
@@ -123,18 +123,18 @@ static void request_handle_cgi(unsigned long register_success) {
 
 	if (register_success == 1) {
 		sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_SHARE_ANNOTATED,
-			cgi_success_dom_id, socket_fd_region, CAPSTONE_ANNOTATION_REV_TRANSFERRED, CAPSTONE_ANNOTATION_PERM_IN, 0, 0);
+			cgi_success_dom_id, socket_fd_region, CAPSTONE_ANNOTATION_PERM_IN, CAPSTONE_ANNOTATION_REV_TRANSFERRED, 0, 0);
 		sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_SHARE_ANNOTATED,
-			cgi_success_dom_id, response_region, CAPSTONE_ANNOTATION_REV_TRANSFERRED, CAPSTONE_ANNOTATION_PERM_OUT, 0, 0);
+			cgi_success_dom_id, response_region, CAPSTONE_ANNOTATION_PERM_OUT, CAPSTONE_ANNOTATION_REV_TRANSFERRED, 0, 0);
 
 		sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_DOM_CALL,
 			cgi_success_dom_id, 0, 0, 0, 0, 0);
 	}
 	else {
 		sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_SHARE_ANNOTATED,
-			cgi_fail_dom_id, socket_fd_region, CAPSTONE_ANNOTATION_REV_TRANSFERRED, CAPSTONE_ANNOTATION_PERM_IN, 0, 0);
+			cgi_fail_dom_id, socket_fd_region, CAPSTONE_ANNOTATION_PERM_IN, CAPSTONE_ANNOTATION_REV_TRANSFERRED, 0, 0);
 		sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_SHARE_ANNOTATED,
-			cgi_fail_dom_id, response_region, CAPSTONE_ANNOTATION_REV_TRANSFERRED, CAPSTONE_ANNOTATION_PERM_OUT, 0, 0);
+			cgi_fail_dom_id, response_region, CAPSTONE_ANNOTATION_PERM_OUT, CAPSTONE_ANNOTATION_REV_TRANSFERRED, 0, 0);
 		
 		sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_DOM_CALL,
 			cgi_fail_dom_id, 0, 0, 0, 0, 0);
@@ -152,15 +152,6 @@ static void handle_404_preprocessing(void) {
 
 static void request_reprocessing(void) {
 	char lineBuffer[256];
-
-	struct sbiret sbi_res = sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_COUNT,
-		0, 0, 0, 0, 0, 0);
-	const region_id_t region_n = sbi_res.value;
-	response_region = region_n - 1;
-	socket_fd_region = response_region - 1;
-
-	socket_fd_region_base = region_id_to_base(socket_fd_region);
-	response_region_base = region_id_to_base(response_region);
 
 	socket_fd_region_ptr = socket_fd_region_base;
 	read_line_from_socket(lineBuffer, 256);
@@ -341,22 +332,26 @@ static void main(void) {
 	struct sbiret sbi_res = sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_COUNT,
 		0, 0, 0, 0, 0, 0);
 	const region_id_t region_n = sbi_res.value;
-	region_id_t cgi_fail_region = region_n - 1;
+	response_region = region_n - 1;
+	socket_fd_region = response_region - 1;
+	region_id_t cgi_fail_region = socket_fd_region - 1;
 	region_id_t cgi_success_region = cgi_fail_region - 1;
 	metadata_region = cgi_success_region - 1;
 
 	metadata_region_base = region_id_to_base(metadata_region);
 	char *cgi_success_region_base = region_id_to_base(cgi_success_region);
 	char *cgi_fail_region_base = region_id_to_base(cgi_fail_region);
+	socket_fd_region_base = region_id_to_base(socket_fd_region);
+	response_region_base = region_id_to_base(response_region);
 
 	/* CGI domains */
 	cgi_success_dom_id = create_dom_from_region(cgi_success_region_base);
 	cgi_fail_dom_id = create_dom_from_region(cgi_fail_region_base);
 
 	sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_SHARE_ANNOTATED,
-		cgi_success_dom_id, metadata_region, CAPSTONE_ANNOTATION_REV_SHARED, CAPSTONE_ANNOTATION_PERM_INOUT, 0, 0);
+		cgi_success_dom_id, metadata_region, CAPSTONE_ANNOTATION_PERM_INOUT, CAPSTONE_ANNOTATION_REV_SHARED, 0, 0);
 	sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_SHARE_ANNOTATED,
-		cgi_fail_dom_id, metadata_region, CAPSTONE_ANNOTATION_REV_SHARED, CAPSTONE_ANNOTATION_PERM_INOUT, 0, 0);
+		cgi_fail_dom_id, metadata_region, CAPSTONE_ANNOTATION_PERM_INOUT, CAPSTONE_ANNOTATION_REV_SHARED, 0, 0);
 
 	while (1) {
 		unsigned long rv = 0;
