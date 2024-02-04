@@ -1,4 +1,4 @@
 source "$BR2_EXTERNAL_CAPSTONE_PATH/package/modcapstone/Config.in"
 source "$BR2_EXTERNAL_CAPSTONE_PATH/package/capstone-test-domains/Config.in"
 source "$BR2_EXTERNAL_CAPSTONE_PATH/package/capstone-sbi-domain/Config.in"
-
+source "$BR2_EXTERNAL_CAPSTONE_PATH/package/capstone-null-blk/Config.in"

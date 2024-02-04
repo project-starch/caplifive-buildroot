@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<head>
+    <title>Captainer Nested Enclave Case Study Demo: Mini CGI Web Server</title>
+    <script>
+        function submitForm(action) {
+            document.getElementById('registerForm').action = action;
+            document.getElementById('registerForm').submit();
+        }
+    </script>
+</head>
+<body>
+    <h1>Newsletter Registration</h1>
+    <p>Click different bottoms below to use different CGI code in separate domains handling the request.</p>
+    <form id="registerForm" method="post">
+      Your name: <input type="text" name="name"><br>
+      Your email: <input type="email" name="email"><br>
+      <input type="button" value="Submit Success" onclick="submitForm('http://localhost:8888/cgi/cgi_register_success.dom')">
+      <input type="button" value="Submit Fail" onclick="submitForm('http://localhost:8888/cgi/cgi_register_fail.dom')">
+    </form>
+</body>

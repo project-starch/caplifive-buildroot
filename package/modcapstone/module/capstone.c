@@ -92,6 +92,7 @@ static void ioctl_create_dom(struct ioctl_dom_create_args* __user args) {
 	unsigned long dom_paddr = __pa(dom_vaddr);
 	// TODO: do we still need to do this on page granularity?
 	pr_info("Domain memory region vaddr = %lx, paddr = %lx\n", dom_vaddr, dom_paddr);
+	pr_info("code size = %lu, tot_size = %lx, entry_offset = %lx\n", m_args.code_len, (1 << dom_pages_log2) * PAGE_SIZE, m_args.entry_offset);
 
 	copy_from_user((void*)dom_vaddr, m_args.code_begin, m_args.code_len);
 
@@ -186,6 +187,28 @@ static void ioctl_create_region(struct ioctl_region_create_args* __user args) {
 	copy_to_user(args, &m_args, sizeof(struct ioctl_region_create_args));
 }
 
+static void ioctl_revoke_region(struct ioctl_region_revoke_args* __user args) {
+	struct ioctl_region_revoke_args m_args;
+	copy_from_user(&m_args, args, sizeof(struct ioctl_region_revoke_args));
+
+	struct sbiret sbi_res = sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_REVOKE,
+				m_args.region_id, 0, 0, 0, 0, 0);
+	m_args.retval = sbi_res.value;
+
+	copy_to_user(args, &m_args, sizeof(struct ioctl_region_revoke_args));
+}
+
+static void ioctl_share_region_annotated(struct ioctl_region_share_annotated_args* __user args) {
+	struct ioctl_region_share_annotated_args m_args;
+	copy_from_user(&m_args, args, sizeof(struct ioctl_region_share_annotated_args));
+
+	struct sbiret sbi_res = sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_SHARE,
+				m_args.dom_id, m_args.region_id, m_args.annotation_perm, m_args.annotation_rev, 0, 0);
+	m_args.retval = sbi_res.value;
+
+	copy_to_user(args, &m_args, sizeof(struct ioctl_region_share_annotated_args));
+}
+
 unsigned long share_region(dom_id_t dom_id, region_id_t region_id) {
 	struct sbiret sbi_res = sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_SHARE,
 				dom_id, region_id, 0, 0, 0, 0);
@@ -271,6 +294,12 @@ static long device_ioctl(struct file* file,
 			break;
 		case IOCTL_DOM_SCHEDULE:
 			ioctl_schedule_dom((struct ioctl_dom_sched_args* __user)ioctl_param);
+			break;
+		case IOCTL_REGION_SHARE_ANNOTATED:
+			ioctl_share_region_annotated((struct ioctl_region_share_annotated_args* __user)ioctl_param);
+			break;
+		case IOCTL_REGION_REVOKE:
+			ioctl_revoke_region((struct ioctl_region_revoke_args* __user)ioctl_param);
 			break;
 		default:
 			pr_info("Unrecognised IOCTL command %u\n", ioctl_num);

@@ -34,8 +34,21 @@ struct ioctl_region_create_args {
     size_t mmap_offset; /* the mmap offset of the new region */
 };
 
+struct ioctl_region_share_annotated_args {
+    dom_id_t dom_id;
+    region_id_t region_id;
+    unsigned long annotation_perm;
+    unsigned long annotation_rev;
+    unsigned retval;
+};
+
 struct ioctl_region_share_args {
     dom_id_t dom_id;
+    region_id_t region_id;
+    unsigned retval;
+};
+
+struct ioctl_region_revoke_args {
     region_id_t region_id;
     unsigned retval;
 };
@@ -64,6 +77,8 @@ struct ioctl_dom_get_data_args {
 #define IOCTL_REGION_QUERY          _IOWR(IOC_MAGIC, 4, struct ioctl_region_query_args)
 #define IOCTL_REGION_PROBE          _IO(IOC_MAGIC, 5)
 #define IOCTL_DOM_SCHEDULE          _IOWR(IOC_MAGIC, 6, struct ioctl_dom_sched_args)
-#define IOCTL_DOM_DATA_GET          _IOWR(IOC_MAGIC, 7, struct ioctl_dom_get_data_args)
+#define IOCTL_REGION_SHARE_ANNOTATED          _IOWR(IOC_MAGIC, 7, struct ioctl_region_share_annotated_args)
+#define IOCTL_REGION_REVOKE          _IOWR(IOC_MAGIC, 8, struct ioctl_region_revoke_args)
+#define IOCTL_DOM_DATA_GET          _IOWR(IOC_MAGIC, 9, struct ioctl_dom_get_data_args)
 
 #endif

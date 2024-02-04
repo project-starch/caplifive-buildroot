@@ -57,24 +57,87 @@ Pass the following arguments to Capstone-QEMU:
 
 where `<path>` is the path to the local working directory of this repo.
 
-
 Log in using `root`.
 
 Both the kernel module and the test program are located at `/`.
 To install or uninstall the kernel module,
 
-    modprobe capstone       # install
-    modprobe -r capstone    # uninstall
+    insmod /capstone.ko       # install
+    insmod -r capstone    # uninstall
 
 After the kernel module is installed, you can run the test program
 
-    /capstone-test <test domain ELF file> [<number of times to call the domain (default: 1)>]
+    /capstone-test.user <test domain ELF file> [<number of times to call the domain (default: 1)>]
 
 The `/run-test` script does all the operations above.
 
     /run-test <test domain name> [<number of times to call the domain (default: 1)>]
 
 The test domain name does not include the `.dom` suffix.
+
+#### Case Study: In-kernel Isolation of Null Block Devices
+
+> TL;DR: Run `expect capstone_nullb.tcl` in Capstone-QEMU to see the results.
+
+Build the null block device kernel module and the isolated
+kernel module which will run in another Captainer domain:
+
+    make build CAPSTONE_CC_PATH=<path-to-capstone-c-compiler-directory> A=capstone-null-blk-build
+
+Build the user space setup program:
+
+    make build CAPSTONE_CC_PATH=<path-to-capstone-c-compiler-directory> A=modcapstone-rebuild
+
+Load the `capstone` and `configfs` kernel modules:
+
+    modprobe configfs
+    insmod /capstone.ko
+
+Run the user space setup program:
+
+    /null_blk.user
+
+Load the null block device kernel module:
+
+    insmod /nullb/capstone_split/null_blk.ko
+
+Then the null block device is ready to be used.
+
+#### Case Study: Mini CGI Web Server in Nested Captainer Domains
+
+> TL;DR: Run `capstone_nested_enclave.tcl` in Capstone-QEMU to see the results.
+
+Build the web server frontend:
+
+    make build CAPSTONE_CC_PATH=<path-to-capstone-c-compiler-directory> A=modcapstone-rebuild
+
+Build the isolated web server backend running in a separate domain 
+and the nested CGI programs running in nested domains:
+
+    make build CAPSTONE_CC_PATH=<path-to-capstone-c-compiler-directory> A=capstone-nested-enclave-build
+
+Load the `capstone` kernel module:
+    
+    insmod /capstone.ko
+
+Run the web server in the background:
+
+    /miniweb_frontend.user &
+
+Use `wget` with busybox to test the web server, e.g.
+
+    busybox wget -O - http://localhost:8888/index.html
+    busybox wget -O - http://localhost:8888/null.html
+    busybox wget -O - http://localhost:8888/register.html
+
+Or you can send POST request and let it be handled by CGI programs running in nested domains:
+(If you have a web browser, just fill the form and click one of the two bottoms on `/www/register.html`.)
+
+    busybox wget --post-data "name=Alex&email=alex@email.com" -O - http://localhost:8888/cgi/cgi_register_success.dom
+
+    busybox wget --post-data "name=Bob&email=bob@email.com" -O - http://localhost:8888/cgi/cgi_register_success.dom
+
+    busybox wget --post-data "name=Alex&email=alex@email.com" -O - http://localhost:8888/cgi/cgi_register_fail.dom
 
 ### DPDK case study usage
 

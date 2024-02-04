@@ -11,7 +11,7 @@
 
 #define cap_cursor(cap) __capfield((cap), 2)
 
-unsigned initialised;
+unsigned initialised = 0;
 
 __domentry __domreentryrestores void entry(__domret void *ra, unsigned func, unsigned *buf) {
     int handled;
