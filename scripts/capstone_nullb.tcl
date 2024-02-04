@@ -28,6 +28,7 @@ interact {
         send "dd if=/dev/nullb0 bs=1024 count=10 | hexdump -C\r"
         send "rmmod null_blk\r"
         send "ls -l /dev | grep nullb\r"
+        send "/print-counters\r"
         send "poweroff -f\r"
     }
 }
