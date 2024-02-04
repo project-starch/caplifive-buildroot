@@ -389,6 +389,7 @@ main(int __argc, char *__argv[])
 
 	// send_to_client_domain(dom_id, region_base);
 	start_cmdline();
+	asm volatile (".insn r 0x5b, 0x1, 0x46, x0, x0, x0");
 
 	rte_eal_mp_wait_lcore();
 

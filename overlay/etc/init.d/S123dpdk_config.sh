@@ -10,6 +10,6 @@ echo 2048 > /sys/kernel/mm/hugepages/hugepages-2048kB/nr_hugepages
 # python3 /etc/init.d/.usertools/dpdk-devbind.py --unbind 0000:00:03.0
 # python3 /etc/init.d/.usertools/dpdk-devbind.py --bind=vfio-pci eth1
 # python3 /etc/init.d/.usertools/dpdk-devbind.py --bind=vfio-pci eth2
-# -l 0 -n 4 -- -p 3 -n 2
-# -l 0 -n 4 -- -p 3 -n 1
-# mount -t hugetlbfs nodev /mnt/huge && echo 2048 > /sys/kernel/mm/hugepages/hugepages-2048kB/nr_hugepages
+# ./dpdk-chat_server -l 0 -n 4 -- -p 3 -n 2
+# ./dpdk-chat_server -l 0 -n 4 -- -p 3 -n 1
+# mount -t hugetlbfs nodev /mnt/huge && echo 2048 > /sys/kernel/mm/hugepages/hugepages-2048kB/nr_hugepages && insmod capstone.ko && ./dpdk-chat_server -l 0 -n 4 -- -p 3 -n 2

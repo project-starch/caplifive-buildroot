@@ -90,6 +90,13 @@ send_to_client_domain(dom_id_t __dom_id, void *__region_base, char *__msg_arr)
         tok = strtok(NULL, " ");
     }
     printf("\n");
+    // uint8_t reg = 21;
+    // asm volatile(".insn r 0x5b, 0x1, 0x45, x0, %0, %1"
+    //         : "+r"(reg)
+    //         : "r"(nr_vals * sizeof(long long)));
+    asm volatile(".insn r 0x5b, 0x1, 0x45, x0, %0, %1"
+            :
+            : "r"(21), "r"(nr_vals * sizeof(long long)));
 
 	/**
 	 * Send information to the client domain
@@ -102,6 +109,9 @@ send_to_client_domain(dom_id_t __dom_id, void *__region_base, char *__msg_arr)
 	 * Wait for client to process information
 	*/
 	while (*(unsigned long long *)region_base != ACK);
+    // asm volatile(".insn r 0x5b, 0x1, 0x45, x0, %0, %1"
+    //         :
+    //         : "r"(23), "r"(1));
 	fprintf(stdout, "Client processed %lu values.\n", return_dom);
 }
 
@@ -172,6 +182,13 @@ receive_from_client_domain(dom_id_t __dom_id, void *__region_base)
 	while (*(unsigned long long *)region_base != ACK);
 
     nr_recv_vals = *(unsigned long long *)(region_base + 8);
+    // uint8_t reg = 22;
+    // asm volatile(".insn r 0x5b, 0x1, 0x45, x0, %0, %1"
+    //         : "+r"(reg)
+    //         : "r"(nr_recv_vals * sizeof(long long)));
+    asm volatile(".insn r 0x5b, 0x1, 0x45, x0, %0, %1"
+            :
+            : "r"(22), "r"(nr_recv_vals * sizeof(long long)));
 
     fprintf(stdout, "Number of elements about to be consumed: %u.\n", nr_recv_vals);
     fprintf(stdout, "Received from client domain %u:", __dom_id);
