@@ -23,11 +23,9 @@ interact {
     -o "# " {
         send "/null_blk.user\r"
         send "insmod /nullb/capstone_split/null_blk.ko\r"
-        send "ls -l /dev | grep nullb\r"
         send "echo \"hello world\" | dd of=/dev/nullb0 bs=1024 count=10\r"
         send "dd if=/dev/nullb0 bs=1024 count=10 | hexdump -C\r"
-        send "rmmod null_blk\r"
-        send "ls -l /dev | grep nullb\r"
+        # send "rmmod null_blk\r"
         send "/print-counters\r"
         send "poweroff -f\r"
     }

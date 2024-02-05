@@ -202,7 +202,7 @@ static void ioctl_share_region_annotated(struct ioctl_region_share_annotated_arg
 	struct ioctl_region_share_annotated_args m_args;
 	copy_from_user(&m_args, args, sizeof(struct ioctl_region_share_annotated_args));
 
-	struct sbiret sbi_res = sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_SHARE,
+	struct sbiret sbi_res = sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_SHARE_ANNOTATED,
 				m_args.dom_id, m_args.region_id, m_args.annotation_perm, m_args.annotation_rev, 0, 0);
 	m_args.retval = sbi_res.value;
 

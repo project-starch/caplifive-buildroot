@@ -13,6 +13,9 @@
 #include "libcapstone.h"
 
 #define MAX_REGION_N 64
+#define DEBUG_COUNTER_SWITCH_U 0
+#define debug_counter_inc(counter_no, delta) __asm__ volatile(".insn r 0x5b, 0x1, 0x45, x0, %0, %1" :: "r"(counter_no), "r"(delta))
+#define debug_counter_tick(counter_no) debug_counter_inc((counter_no), 1)
 
 struct ElfCode {
     int fd;
@@ -355,6 +358,7 @@ unsigned long call_dom(dom_id_t dom_id) {
         .dom_id = dom_id,
         .retval = 0
     };
+    debug_counter_tick(DEBUG_COUNTER_SWITCH_U);
     ioctl(dev_fd, IOCTL_DOM_CALL, (unsigned long)&args);
     return args.retval;
 }

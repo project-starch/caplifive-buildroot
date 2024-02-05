@@ -77,7 +77,7 @@ The test domain name does not include the `.dom` suffix.
 
 #### Case Study: In-kernel Isolation of Null Block Devices
 
-> TL;DR: Run `expect capstone_nullb.tcl` in Capstone-QEMU to see the results.
+> TL;DR: Run `CAPSTONE_QEMU_PATH=<path-to-capstone-qemu> expect capstone_nullb.tcl` in `scripts` to see the results.
 
 Build the null block device kernel module and the isolated
 kernel module which will run in another Captainer domain:
@@ -105,7 +105,7 @@ Then the null block device is ready to be used.
 
 #### Case Study: Mini CGI Web Server in Nested Captainer Domains
 
-> TL;DR: Run `capstone_nested_enclave.tcl` in Capstone-QEMU to see the results.
+> TL;DR: Run `CAPSTONE_QEMU_PATH=<path-to-capstone-qemu> expect capstone_nested_enclave.tcl` in `scripts` to see the results.
 
 Build the web server frontend:
 
