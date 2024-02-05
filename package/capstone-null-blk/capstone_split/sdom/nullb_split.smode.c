@@ -3,29 +3,17 @@
 #include <linux/kernel.h>
 #include "nullb_split.smode.h"
 
+#define C_PRINT(v) __asm__ volatile(".insn r 0x5b, 0x1, 0x43, x0, %0, x0" :: "r"(v))
+
 #define METADATA_REGION_ID 1
 
 static char stack[4096];
 
-static char* region_id_to_base(region_id_t region_id) {
-	struct sbiret sbi_res = sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_QUERY,
-		/* region_id = */ region_id,
-		/* field = */ CAPSTONE_REGION_FIELD_BASE,
-		0, 0, 0, 0);
-	return (char *)sbi_res.value;
-}
-
-static void simple_memcpy(void *dest, const void *src, unsigned long n) {
-    char *dest_ptr = (char *)dest;
-    const char *src_ptr = (const char *)src;
-
-    while (n > 0) {
-        *dest_ptr = *src_ptr;
-        dest_ptr++;
-        src_ptr++;
-        n--;
-    }
-}
+#define REGION_ID_TO_BASE(region_id) \
+	(char *)(sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_QUERY, \
+		/* region_id = */ region_id, \
+		/* field = */ CAPSTONE_REGION_FIELD_BASE, \
+		0, 0, 0, 0).value);
 
 static void nullbs_null_validate_conf(void)
 {
@@ -33,11 +21,9 @@ static void nullbs_null_validate_conf(void)
 		0, 0, 0, 0, 0, 0);
 	const region_id_t region_n = sbi_res.value;
 	region_id_t wo_region = region_n - 1;
-	char *wo_region_base = region_id_to_base(wo_region);
-	region_id_t ro_region = wo_region - 1;
-	char *ro_region_base = region_id_to_base(ro_region);
-	region_id_t nullb_dev_region = ro_region - 1;
-	char *nullb_dev_region_base = region_id_to_base(nullb_dev_region);
+	char *wo_region_base = REGION_ID_TO_BASE(wo_region);
+	region_id_t nullb_dev_region = wo_region - 1;
+	char *nullb_dev_region_base = REGION_ID_TO_BASE(nullb_dev_region);
 	
 	int rv;
 	struct nullb_device *dev = (struct nullb_device *)nullb_dev_region_base;
@@ -77,13 +63,13 @@ static void nullbs_null_validate_conf(void)
 	    (!dev->zone_size || !is_power_of_2(dev->zone_size))) {
 		// pr_err("zone_size must be power-of-two\n");
 		rv = -EINVAL;
-		simple_memcpy(wo_region_base, &rv, sizeof(int));
+		*((int *)(wo_region_base)) = rv;
 
 		return;
 	}
 
 	rv = 0;
-	simple_memcpy(wo_region_base, &rv, sizeof(int));
+	*((int *)(wo_region_base)) = rv;
 
 	sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_DE_LINEAR,
 		wo_region, 0, 0, 0, 0, 0);
@@ -91,7 +77,7 @@ static void nullbs_null_validate_conf(void)
 		nullb_dev_region, 0, 0, 0, 0, 0);
 
 	sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_POP,
-		3, 0, 0, 0, 0, 0);
+		2, 0, 0, 0, 0, 0);
 
 	return;
 }
@@ -102,9 +88,9 @@ static void nullbs_nullb_to_queue(void)
 		0, 0, 0, 0, 0, 0);
 	const region_id_t region_n = sbi_res.value;
 	region_id_t wo_region = region_n - 1;
-	char *wo_region_base = region_id_to_base(wo_region);
+	char *wo_region_base = REGION_ID_TO_BASE(wo_region);
 	region_id_t ro_region = wo_region - 1;
-	char *ro_region_base = region_id_to_base(ro_region);
+	char *ro_region_base = REGION_ID_TO_BASE(ro_region);
 
 	struct nullb *nullb = (struct nullb *)ro_region_base;
 	
@@ -114,7 +100,7 @@ static void nullbs_nullb_to_queue(void)
 		index = raw_smp_processor_id() / ((qemu_nr_cpu_ids + nullb->nr_queues - 1) / nullb->nr_queues);
 
 	struct nullb_queue *rv = nullb->queues + index;
-	simple_memcpy(wo_region_base, &rv, sizeof(rv));
+	*((struct nullb_queue **)(wo_region_base)) = rv;
 
 	sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_DE_LINEAR,
 		wo_region, 0, 0, 0, 0, 0);
@@ -131,15 +117,15 @@ static void nullbs_bio_op(void)
 		0, 0, 0, 0, 0, 0);
 	const region_id_t region_n = sbi_res.value;
 	region_id_t wo_region = region_n - 1;
-	char *wo_region_base = region_id_to_base(wo_region);
+	char *wo_region_base = REGION_ID_TO_BASE(wo_region);
 	region_id_t ro_region = wo_region - 1;
-	char *ro_region_base = region_id_to_base(ro_region);
+	char *ro_region_base = REGION_ID_TO_BASE(ro_region);
 
 	struct bio *bio = (struct bio *)ro_region_base;
 
 	enum req_op rv = bio->bi_opf & REQ_OP_MASK;
-
-	simple_memcpy(wo_region_base, &rv, sizeof(rv));
+	
+	*((enum req_op *)(wo_region_base)) = rv;
 
 	sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_DE_LINEAR,
 		wo_region, 0, 0, 0, 0, 0);
@@ -156,13 +142,13 @@ static void nullbs_end_cmd_bio(void)
 		0, 0, 0, 0, 0, 0);
 	const region_id_t region_n = sbi_res.value;
 	region_id_t wo_region = region_n - 1;
-	char *wo_region_base = region_id_to_base(wo_region);
+	char *wo_region_base = REGION_ID_TO_BASE(wo_region);
 	region_id_t ro_region = wo_region - 1;
-	char *ro_region_base = region_id_to_base(ro_region);
+	char *ro_region_base = REGION_ID_TO_BASE(ro_region);
 	
 	struct nullb_cmd *cmd = (struct nullb_cmd *)ro_region_base;
 
-	simple_memcpy(wo_region_base, &(cmd->error), sizeof(cmd->error));
+	*((int *)(wo_region_base)) = cmd->error;
 
 	sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_DE_LINEAR,
 		wo_region, 0, 0, 0, 0, 0);
@@ -172,15 +158,17 @@ static void nullbs_end_cmd_bio(void)
 	return;
 }
 
-static void main(void) {
-	region_id_t metadata_region = METADATA_REGION_ID;
-	char *metadata_region_base = region_id_to_base(metadata_region);
+static __attribute__((naked)) int __init nullb_split_init(void)
+{
+	__asm__ volatile ("mv sp, %0" :: "r"(stack + 4096));
 	
 	while(1) {
 		unsigned long rv = 0;
 
-		unsigned long function_code;
-		simple_memcpy(&function_code, metadata_region_base, sizeof(function_code));
+		region_id_t metadata_region = METADATA_REGION_ID;
+		char *metadata_region_base = REGION_ID_TO_BASE(metadata_region);
+
+		unsigned long function_code = *((unsigned long *)metadata_region_base);
 
         switch (function_code) {
             case NULLBS_NULL_VALIDATE_CONF:
@@ -203,12 +191,6 @@ static void main(void) {
 		sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_DOM_RETURN,
 			rv, 0, 0, 0, 0, 0);
 	}
-}
-
-static __attribute__((naked)) int __init nullb_split_init(void)
-{
-	__asm__ volatile ("mv sp, %0" :: "r"(stack + 4096));
-	main();
 
 	return 0;
 }

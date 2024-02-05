@@ -655,11 +655,7 @@ static inline int null_cache_active(struct nullb *nullb)
 static struct nullb_device *null_alloc_dev(void)
 {
 	struct nullb_device *dev;
-#ifdef __NULLB_SPLIT_ENABLED__
-	dev = (struct nullb_device *)nullb_dev_region_base;
-#else
 	dev = kzalloc(sizeof(*dev), GFP_KERNEL);
-#endif
 	
 	if (!dev)
 		return NULL;
@@ -2161,26 +2157,23 @@ static int null_add_dev(struct nullb_device *dev)
 
 	unsigned long function_code = NULLBS_NULL_VALIDATE_CONF;
 	memcpy(metadata_region_base, &function_code, sizeof(function_code));
-	memcpy(ro_region_base, dev, sizeof(struct nullb_device));
+	memcpy(nullb_dev_region_base, dev, sizeof(struct nullb_device));
 
 	sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_SHARE_ANNOTATED,
-		DOMAIN_NULLB_SPLIT, ro_region, CAPSTONE_ANNOTATION_PERM_IN, CAPSTONE_ANNOTATION_REV_BORROWED, 0, 0);
+		DOMAIN_NULLB_SPLIT, nullb_dev_region, CAPSTONE_ANNOTATION_PERM_INOUT, CAPSTONE_ANNOTATION_REV_BORROWED, 0, 0);
 	sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_SHARE_ANNOTATED,
 		DOMAIN_NULLB_SPLIT, wo_region, CAPSTONE_ANNOTATION_PERM_OUT, CAPSTONE_ANNOTATION_REV_BORROWED, 0, 0);
-	sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_SHARE_ANNOTATED,
-		DOMAIN_NULLB_SPLIT, nullb_dev_region, CAPSTONE_ANNOTATION_PERM_INOUT, CAPSTONE_ANNOTATION_REV_BORROWED, 0, 0);
 
 	sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_DOM_CALL,
 			DOMAIN_NULLB_SPLIT, 0, 0, 0, 0, 0);
 
 	sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_REVOKE,
-			ro_region, 0, 0, 0, 0, 0);
+			nullb_dev_region, 0, 0, 0, 0, 0);
 	sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_REVOKE,
 			wo_region, 0, 0, 0, 0, 0);
-	sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_REVOKE,
-			nullb_dev_region, 0, 0, 0, 0, 0);
 	
 	memcpy(&rv, wo_region_base, sizeof(int));
+	memcpy(dev, nullb_dev_region_base, sizeof(struct nullb_device));
 
 	printk(KERN_INFO "exit domain: null_validate_conf\n");
 #else
