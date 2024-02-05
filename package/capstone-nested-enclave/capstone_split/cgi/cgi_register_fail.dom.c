@@ -28,6 +28,11 @@
 
 #define C_PRINT(v) __asm__ volatile(".insn r 0x5b, 0x1, 0x43, x0, %0, x0" :: "r"(v))
 
+#define DEBUG_COUNTER_SWITCH_C  2
+#define debug_counter_inc(counter_no, delta) __asm__ volatile(".insn r 0x5b, 0x1, 0x45, x0, %0, %1" :: "r"(counter_no), "r"(delta))
+#define debug_counter_tick(counter_no) debug_counter_inc((counter_no), 1)
+
+
 void* regions[MAX_REGION_N];
 unsigned region_n = 0;
 
@@ -345,5 +350,6 @@ __domentry __domreentry void cgi_fail_entry(__domret void *ra, unsigned func, un
     }
     ra = caller_dom;
 
+    debug_counter_tick(DEBUG_COUNTER_SWITCH_C);
     __domreturn(ra, __cgi_fail_entry_reentry, 0);
 }
