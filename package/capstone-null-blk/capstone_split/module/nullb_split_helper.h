@@ -10,11 +10,9 @@
 #define NULLBS_END_CMD_BIO 0x3
 
 #define DOMAIN_NULLB_SPLIT 0x0
-#define PRIME_REGION_ID 0x4
 
 typedef unsigned long dom_id_t;
 typedef unsigned long region_id_t;
-typedef unsigned long function_code_t;
 
 /*sbi*/
 #define SBI_EXT_CAPSTONE 0x12345678
@@ -27,10 +25,25 @@ typedef unsigned long function_code_t;
 #define SBI_EXT_CAPSTONE_REGION_QUERY    0x6
 #define SBI_EXT_CAPSTONE_DOM_SCHEDULE    0x7
 #define SBI_EXT_CAPSTONE_REGION_COUNT    0x8
+#define SBI_EXT_CAPSTONE_REGION_SHARE_ANNOTATED    0x9
+#define SBI_EXT_CAPSTONE_REGION_REVOKE    0xa
+#define SBI_EXT_CAPSTONE_REGION_DE_LINEAR    0xb
+#define SBI_EXT_CAPSTONE_REGION_POP   0xc
 
 #define CAPSTONE_REGION_FIELD_BASE    0x0
 #define CAPSTONE_REGION_FIELD_END     0x1
 #define CAPSTONE_REGION_FIELD_LEN     0x2
+
+#define CAPSTONE_ANNOTATION_PERM_IN 0x0
+#define CAPSTONE_ANNOTATION_PERM_INOUT 0x1
+#define CAPSTONE_ANNOTATION_PERM_OUT 0x2
+#define CAPSTONE_ANNOTATION_PERM_EXE 0x3
+#define CAPSTONE_ANNOTATION_PERM_FULL 0x4
+
+#define CAPSTONE_ANNOTATION_REV_DEFAULT 0x0
+#define CAPSTONE_ANNOTATION_REV_BORROWED 0x1
+#define CAPSTONE_ANNOTATION_REV_SHARED 0x2
+#define CAPSTONE_ANNOTATION_REV_TRANSFERRED 0x3
 
 typedef unsigned long uintptr_t;
 
@@ -63,8 +76,5 @@ static struct sbiret sbi_ecall(int ext, int fid, unsigned long arg0,
 
 	return ret;
 }
-
-#define CALL_NULLB_SPLIT_DOMAIN sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_DOM_CALL, \
-				DOMAIN_NULLB_SPLIT, 0, 0, 0, 0, 0)
 
 #endif /* __NULLB_SPLIT_HELPER_H */
