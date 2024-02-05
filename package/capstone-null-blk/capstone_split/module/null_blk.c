@@ -5,6 +5,7 @@
 #include <linux/fs.h>
 #include <linux/init.h>
 #include <linux/string.h>
+#include <linux/gfp.h>
 #include "null_blk.h"
 #include "nullb_split_helper.h"
 
@@ -2162,16 +2163,12 @@ static int null_add_dev(struct nullb_device *dev)
 	memcpy(metadata_region_base, &function_code, sizeof(function_code));
 	memcpy(ro_region_base, dev, sizeof(struct nullb_device));
 
-	printk(KERN_INFO "DEBUG POINT\n");
 	sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_SHARE_ANNOTATED,
 		DOMAIN_NULLB_SPLIT, ro_region, CAPSTONE_ANNOTATION_PERM_IN, CAPSTONE_ANNOTATION_REV_BORROWED, 0, 0);
-	printk(KERN_INFO "DEBUG POINT\n");
 	sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_SHARE_ANNOTATED,
 		DOMAIN_NULLB_SPLIT, wo_region, CAPSTONE_ANNOTATION_PERM_OUT, CAPSTONE_ANNOTATION_REV_BORROWED, 0, 0);
-	printk(KERN_INFO "DEBUG POINT\n");
 	sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_SHARE_ANNOTATED,
 		DOMAIN_NULLB_SPLIT, nullb_dev_region, CAPSTONE_ANNOTATION_PERM_INOUT, CAPSTONE_ANNOTATION_REV_BORROWED, 0, 0);
-	printk(KERN_INFO "DEBUG POINT\n");
 
 	sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_DOM_CALL,
 			DOMAIN_NULLB_SPLIT, 0, 0, 0, 0, 0);
