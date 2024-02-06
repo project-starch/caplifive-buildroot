@@ -1,0 +1,40 @@
+BootStrap: docker
+From: ubuntu:22.04
+
+%post
+    apt-get -y update
+    apt-get -y upgrade
+
+	apt-get install -y gcc g++
+    apt-get install -y wget
+	apt-get install -y zip unzip gzip
+    apt-get install -y build-essential
+	apt-get install -y meson ninja-build
+	apt-get install -y python3-pyelftools
+	apt-get install -y libnuma-dev
+	apt-get install -y crossbuild-essential-riscv64
+
+%runscript
+    #!/bin/bash
+
+	if [ "$1" = "build" ]; then
+		wget https://fast.dpdk.org/rel/dpdk-22.11.3.tar.xz
+		tar -xf dpdk-22.11.3.tar.xz
+		cd dpdk-stable-22.11.3
+		meson setup riscv-build --cross-file config/riscv/riscv64_linux_gcc
+		ninja -C riscv-build
+		cd -
+		rm dpdk-22.11.3.tar.xz
+	elif [ "$1" = "rebuild" ]; then
+		cd dpdk-stable-22.11.3
+		ninja -C riscv-build
+		cd -
+	elif [ "$1" = "build_examples" ]; then
+		cd dpdk-stable-22.11.3/riscv-build
+		meson configure -Dexamples=all
+		ninja
+		cd -
+	else
+		echo "Unrecognized command"
+		exit 1
+	fi

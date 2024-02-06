@@ -9,7 +9,6 @@
 
 typedef unsigned long dom_id_t;
 typedef unsigned long region_id_t;
-typedef unsigned long function_code_t;
 
 /*null block driver*/
 #include "../module/null_blk.h"
@@ -42,10 +41,25 @@ enum nullb_device_flags {
 #define SBI_EXT_CAPSTONE_REGION_QUERY    0x6
 #define SBI_EXT_CAPSTONE_DOM_SCHEDULE    0x7
 #define SBI_EXT_CAPSTONE_REGION_COUNT    0x8
+#define SBI_EXT_CAPSTONE_REGION_SHARE_ANNOTATED    0x9
+#define SBI_EXT_CAPSTONE_REGION_REVOKE    0xa
+#define SBI_EXT_CAPSTONE_REGION_DE_LINEAR    0xb
+#define SBI_EXT_CAPSTONE_REGION_POP   0xc
 
 #define CAPSTONE_REGION_FIELD_BASE    0x0
 #define CAPSTONE_REGION_FIELD_END     0x1
 #define CAPSTONE_REGION_FIELD_LEN     0x2
+
+#define CAPSTONE_ANNOTATION_PERM_IN 0x0
+#define CAPSTONE_ANNOTATION_PERM_INOUT 0x1
+#define CAPSTONE_ANNOTATION_PERM_OUT 0x2
+#define CAPSTONE_ANNOTATION_PERM_EXE 0x3
+#define CAPSTONE_ANNOTATION_PERM_FULL 0x4
+
+#define CAPSTONE_ANNOTATION_REV_DEFAULT 0x0
+#define CAPSTONE_ANNOTATION_REV_BORROWED 0x1
+#define CAPSTONE_ANNOTATION_REV_SHARED 0x2
+#define CAPSTONE_ANNOTATION_REV_TRANSFERRED 0x3
 
 typedef unsigned long uintptr_t;
 
@@ -54,7 +68,7 @@ struct sbiret {
 	long value;
 };
 
-static struct sbiret sbi_ecall(int ext, int fid, unsigned long arg0,
+static inline struct sbiret sbi_ecall(int ext, int fid, unsigned long arg0,
 			unsigned long arg1, unsigned long arg2,
 			unsigned long arg3, unsigned long arg4,
 			unsigned long arg5)
