@@ -14,6 +14,7 @@
 unsigned initialised = 0;
 
 __domentry __domreentryrestores void entry(__domret void *ra, unsigned func, unsigned *buf) {
+    int i;
     int handled;
     unsigned s_entry_addr;
     if(initialised) {
@@ -36,11 +37,17 @@ __domentry __domreentryrestores void entry(__domret void *ra, unsigned func, uns
         __asm__ volatile ("csrw mstatus, %0" :: "r"(1 << 11));
         __asm__ volatile ("csrw satp, x0");
         __asm__ volatile ("csrw offsetmmu, x0");
-        __asm__ volatile ("ccsrrw(x0, cmmu, %0)" :: "r"(buf));
+        __asm__ volatile ("ccsrrw(x0, cpmp(0), %0)" :: "r"(buf));
         __asm__ volatile ("ccsrrw(x0, ctvec, %0)" :: "r"(_cap_trap_entry));
         __asm__ volatile ("csrw medeleg, x0");
 
+        cpmp_region[0] = 0;
+        region_cpmp[0] = 0;
         region_n = 1;
+        for(i = 1; i < CAPSTONE_MAX_REGION_N; i += 1)
+            region_cpmp[i] = -1;
+        for(i = 1; i < 16; i += 1)
+            cpmp_region[i] = -1;
         initialised = 1;
     }
 
