@@ -17,6 +17,10 @@
 
 #define PROD_NUMBER 25
 
+#define DEBUG_COUNTER_SWITCH_C  2
+#define debug_counter_inc(counter_no, delta) __asm__ volatile(".insn r 0x5b, 0x1, 0x45, x0, %0, %1" :: "r"(counter_no), "r"(delta))
+#define debug_counter_tick(counter_no) debug_counter_inc((counter_no), 1)
+
 static unsigned *g_shared_region;
 
 __domentry __domreentry void dpdk_client1(__domret void *ra, unsigned action, unsigned *res)
@@ -68,6 +72,7 @@ __domentry __domreentry void dpdk_client1(__domret void *ra, unsigned action, un
              * Return the number of consumed values so the serve knows if more domains calls are needed
             */
             *res = vars_nr;
+            debug_counter_tick(DEBUG_COUNTER_SWITCH_C);
             __domreturn(ra, __dpdk_client1_reentry, 0);
         }
         if (op == SERVER_GET) {
@@ -94,9 +99,11 @@ __domentry __domreentry void dpdk_client1(__domret void *ra, unsigned action, un
             // *g_shared_region = ACK;
             g_shared_region[0] = ACK;
             *res = PROD_NUMBER;
+            debug_counter_tick(DEBUG_COUNTER_SWITCH_C);
             __domreturn(ra, __dpdk_client1_reentry, 0);
         }
     }
 
+    debug_counter_tick(DEBUG_COUNTER_SWITCH_C);
     __domreturn(ra, __dpdk_client1_reentry, 0);
 }

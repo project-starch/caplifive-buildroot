@@ -13,3 +13,7 @@ echo 2048 > /sys/kernel/mm/hugepages/hugepages-2048kB/nr_hugepages
 # ./dpdk-chat_server -l 0 -n 4 -- -p 3 -n 2
 # ./dpdk-chat_server -l 0 -n 4 -- -p 3 -n 1
 # mount -t hugetlbfs nodev /mnt/huge && echo 2048 > /sys/kernel/mm/hugepages/hugepages-2048kB/nr_hugepages && insmod capstone.ko && ./dpdk-chat_server -l 0 -n 4 -- -p 3 -n 2
+# send_to_domain 0 5912 214 9124124 94 2014 1294 1204 29
+# send_to_domain 1 592 5012 59 10 27 249 2419 20
+# receive_from_domain 0
+# receive_from_domain 1
