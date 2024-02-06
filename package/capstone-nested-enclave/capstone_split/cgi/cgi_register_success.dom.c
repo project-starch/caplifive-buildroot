@@ -33,16 +33,19 @@
 #define DEBUG_COUNTER_SHARED_TIMES 11
 #define DEBUG_COUNTER_BORROWED 12
 #define DEBUG_COUNTER_BORROWED_TIMES 13
-#define DEBUG_COUNTER_TRANSFERRED_TRANSFERRED 14
-#define DEBUG_COUNTER_TRANSFERRED_TRANSFERRED_TIMES 15
+#define DEBUG_COUNTER_DOUBLE_TRANSFERRED 14
+#define DEBUG_COUNTER_DOUBLE_TRANSFERRED_TIMES 15
 #define DEBUG_COUNTER_BORROWED_TRANSFERRED 16
 #define DEBUG_COUNTER_BORROWED_TRANSFERRED_TIMES 17
+#define DEBUG_COUNTER_MUTABLE_BORROWED_TRANSFERRED 18
+#define DEBUG_COUNTER_MUTABLE_BORROWED_TRANSFERRED_TIMES 19
 #define debug_counter_inc(counter_no, delta) __asm__ volatile(".insn r 0x5b, 0x1, 0x45, x0, %0, %1" :: "r"(counter_no), "r"(delta))
 #define debug_counter_tick(counter_no) debug_counter_inc((counter_no), 1)
 #define debug_shared_counter_inc(delta) debug_counter_inc(DEBUG_COUNTER_SHARED, delta); debug_counter_inc(DEBUG_COUNTER_SHARED_TIMES, 1)
 #define debug_borrowed_counter_inc(delta) debug_counter_inc(DEBUG_COUNTER_BORROWED, delta); debug_counter_inc(DEBUG_COUNTER_BORROWED_TIMES, 1)
-#define debug_transferred_transferred_counter_inc(delta) debug_counter_inc(DEBUG_COUNTER_TRANSFERRED_TRANSFERRED, delta); debug_counter_inc(DEBUG_COUNTER_TRANSFERRED_TRANSFERRED_TIMES, 1)
+#define debug_double_transferred_counter_inc(delta) debug_counter_inc(DEBUG_COUNTER_DOUBLE_TRANSFERRED, delta); debug_counter_inc(DEBUG_COUNTER_DOUBLE_TRANSFERRED_TIMES, 1)
 #define debug_borrowed_transferred_counter_inc(delta) debug_counter_inc(DEBUG_COUNTER_BORROWED_TRANSFERRED, delta); debug_counter_inc(DEBUG_COUNTER_BORROWED_TRANSFERRED_TIMES, 1)
+#define debug_mutable_borrowed_transferred_counter_inc(delta) debug_counter_inc(DEBUG_COUNTER_MUTABLE_BORROWED_TRANSFERRED, delta); debug_counter_inc(DEBUG_COUNTER_MUTABLE_BORROWED_TRANSFERRED_TIMES, 1)
 
 void* regions[MAX_REGION_N];
 unsigned region_n = 0;
@@ -307,7 +310,7 @@ void register_success(void) {
     unsigned* shared_region = (unsigned *)metadata_region;
     shared_region[METADATA_SOCKET_LEN_OFFSET_UL] = response_size;
 
-    debug_borrowed_transferred_counter_inc(response_size);
+    debug_mutable_borrowed_transferred_counter_inc(response_size);
     debug_shared_counter_inc(SIZE_OF_ULL);
 }
 

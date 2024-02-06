@@ -14,15 +14,18 @@
 #define DEBUG_COUNTER_SHARED_TIMES 11
 #define DEBUG_COUNTER_BORROWED 12
 #define DEBUG_COUNTER_BORROWED_TIMES 13
-#define DEBUG_COUNTER_TRANSFERRED_TRANSFERRED 14
-#define DEBUG_COUNTER_TRANSFERRED_TRANSFERRED_TIMES 15
+#define DEBUG_COUNTER_DOUBLE_TRANSFERRED 14
+#define DEBUG_COUNTER_DOUBLE_TRANSFERRED_TIMES 15
 #define DEBUG_COUNTER_BORROWED_TRANSFERRED 16
 #define DEBUG_COUNTER_BORROWED_TRANSFERRED_TIMES 17
+#define DEBUG_COUNTER_MUTABLE_BORROWED_TRANSFERRED 18
+#define DEBUG_COUNTER_MUTABLE_BORROWED_TRANSFERRED_TIMES 19
 #define debug_counter_inc(counter_no, delta) __asm__ volatile(".insn r 0x5b, 0x1, 0x45, x0, %0, %1" :: "r"(counter_no), "r"(delta))
 #define debug_shared_counter_inc(delta) debug_counter_inc(DEBUG_COUNTER_SHARED, delta); debug_counter_inc(DEBUG_COUNTER_SHARED_TIMES, 1)
 #define debug_borrowed_counter_inc(delta) debug_counter_inc(DEBUG_COUNTER_BORROWED, delta); debug_counter_inc(DEBUG_COUNTER_BORROWED_TIMES, 1)
-#define debug_transferred_transferred_counter_inc(delta) debug_counter_inc(DEBUG_COUNTER_TRANSFERRED_TRANSFERRED, delta); debug_counter_inc(DEBUG_COUNTER_TRANSFERRED_TRANSFERRED_TIMES, 1)
+#define debug_double_transferred_counter_inc(delta) debug_counter_inc(DEBUG_COUNTER_DOUBLE_TRANSFERRED, delta); debug_counter_inc(DEBUG_COUNTER_DOUBLE_TRANSFERRED_TIMES, 1)
 #define debug_borrowed_transferred_counter_inc(delta) debug_counter_inc(DEBUG_COUNTER_BORROWED_TRANSFERRED, delta); debug_counter_inc(DEBUG_COUNTER_BORROWED_TRANSFERRED_TIMES, 1)
+#define debug_mutable_borrowed_transferred_counter_inc(delta) debug_counter_inc(DEBUG_COUNTER_MUTABLE_BORROWED_TRANSFERRED, delta); debug_counter_inc(DEBUG_COUNTER_MUTABLE_BORROWED_TRANSFERRED_TIMES, 1)
 
 #define CAPSTONE_ANNOTATION_PERM_IN 0x0
 #define CAPSTONE_ANNOTATION_PERM_INOUT 0x1
@@ -291,7 +294,7 @@ int main() {
     else {
         char* ptr = cgi_success_region_base;
         unsigned long read_size_cgi_success = read(cgi_success_fd, ptr, CGI_ELF_REGION_SIZE);
-        debug_transferred_transferred_counter_inc(read_size_cgi_success);
+        debug_double_transferred_counter_inc(read_size_cgi_success);
         print_nobuf("read_size_cgi_success: %lu\n", read_size_cgi_success);
         close(cgi_success_fd);
     }
@@ -306,7 +309,7 @@ int main() {
     else {
         char* ptr = cgi_fail_region_base;
         unsigned long read_size_cgi_fail = read(cgi_fail_fd, ptr, CGI_ELF_REGION_SIZE);
-        debug_transferred_transferred_counter_inc(read_size_cgi_fail);
+        debug_double_transferred_counter_inc(read_size_cgi_fail);
         print_nobuf("read_size_cgi_fail: %lu\n", read_size_cgi_fail);
         close(cgi_fail_fd);
     }
