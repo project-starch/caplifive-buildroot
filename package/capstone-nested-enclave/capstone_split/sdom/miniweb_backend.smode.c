@@ -1,5 +1,19 @@
 #include "miniweb_backend.smode.h"
 
+#define DEBUG_COUNTER_SHARED 10
+#define DEBUG_COUNTER_SHARED_TIMES 11
+#define DEBUG_COUNTER_BORROWED 12
+#define DEBUG_COUNTER_BORROWED_TIMES 13
+#define DEBUG_COUNTER_TRANSFERRED_TRANSFERRED 14
+#define DEBUG_COUNTER_TRANSFERRED_TRANSFERRED_TIMES 15
+#define DEBUG_COUNTER_BORROWED_TRANSFERRED 16
+#define DEBUG_COUNTER_BORROWED_TRANSFERRED_TIMES 17
+#define debug_counter_inc(counter_no, delta) __asm__ volatile(".insn r 0x5b, 0x1, 0x45, x0, %0, %1" :: "r"(counter_no), "r"(delta))
+#define debug_shared_counter_inc(delta) debug_counter_inc(DEBUG_COUNTER_SHARED, delta); debug_counter_inc(DEBUG_COUNTER_SHARED_TIMES, 1)
+#define debug_borrowed_counter_inc(delta) debug_counter_inc(DEBUG_COUNTER_BORROWED, delta); debug_counter_inc(DEBUG_COUNTER_BORROWED_TIMES, 1)
+#define debug_transferred_transferred_counter_inc(delta) debug_counter_inc(DEBUG_COUNTER_TRANSFERRED_TRANSFERRED, delta); debug_counter_inc(DEBUG_COUNTER_TRANSFERRED_TRANSFERRED_TIMES, 1)
+#define debug_borrowed_transferred_counter_inc(delta) debug_counter_inc(DEBUG_COUNTER_BORROWED_TRANSFERRED, delta); debug_counter_inc(DEBUG_COUNTER_BORROWED_TRANSFERRED_TIMES, 1)
+
 #define C_PRINT(v) __asm__ volatile(".insn r 0x5b, 0x1, 0x43, x0, %0, x0" :: "r"(v))
 #define STACK_SIZE (4096 * 2)
 
@@ -120,6 +134,7 @@ static void simple_memcpy(void *dest, const void *src, unsigned long n) {
 static void request_handle_cgi(unsigned long register_success) {
 	unsigned long html_fd_status = HTML_FD_CGI;
 	simple_memcpy(metadata_region_base + METADATA_STATUS_OFFSET, &html_fd_status, sizeof(html_fd_status));
+	debug_shared_counter_inc(sizeof(unsigned long));
 
 	if (register_success == 1) {
 		sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_SHARE_ANNOTATED,
@@ -148,6 +163,7 @@ static void request_handle_cgi(unsigned long register_success) {
 static void handle_404_preprocessing(void) {
 	unsigned long html_fd_status = HTML_FD_404RESPONSE;
 	simple_memcpy(metadata_region_base + METADATA_STATUS_OFFSET, &html_fd_status, sizeof(html_fd_status));
+	debug_shared_counter_inc(sizeof(unsigned long));
 }
 
 static void request_reprocessing(void) {
@@ -199,9 +215,12 @@ static void request_reprocessing(void) {
 	else {
 		unsigned long html_fd_status = HTML_FD_200RESPONSE;
 		simple_memcpy(metadata_region_base + METADATA_STATUS_OFFSET, &html_fd_status, sizeof(html_fd_status));
+		debug_shared_counter_inc(sizeof(unsigned long));
 		unsigned long html_fd_len = url_length + 1;
 		simple_memcpy(metadata_region_base + METADATA_HTML_LEN_OFFSET, &html_fd_len, sizeof(html_fd_len));
+		debug_shared_counter_inc(sizeof(unsigned long));
 		simple_memcpy(metadata_region_base + METADATA_HTML_PATH_OFFSET, url, html_fd_len);
+		debug_shared_counter_inc(html_fd_len);
 		return;
 	}
 }
@@ -209,6 +228,7 @@ static void request_reprocessing(void) {
 static void request_handle_404(void) {
 	unsigned long html_fd_len;
 	simple_memcpy(&html_fd_len, metadata_region_base + METADATA_HTML_LEN_OFFSET, sizeof(html_fd_len));
+	debug_shared_counter_inc(sizeof(unsigned long));
 
 	struct sbiret sbi_res = sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_COUNT,
 		0, 0, 0, 0, 0, 0);
@@ -219,7 +239,9 @@ static void request_handle_404(void) {
 	unsigned long long socket_fd_len = (unsigned long long)html_fd_len;
 
 	simple_memcpy(metadata_region_base + METADATA_SOCKET_LEN_OFFSET, &socket_fd_len, sizeof(socket_fd_len));
+	debug_shared_counter_inc(sizeof(unsigned long long));
 	simple_memcpy(response_region_base, html_fd_region_base, html_fd_len);
+	debug_borrowed_counter_inc(html_fd_len);
 
 	// delin response, so that the frontend can read it
 	sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_DE_LINEAR,
@@ -301,6 +323,7 @@ static void request_handle_200(void) {
 
 	unsigned long html_fd_len;
 	simple_memcpy(&html_fd_len, metadata_region_base + METADATA_HTML_LEN_OFFSET, sizeof(html_fd_len));
+	debug_shared_counter_inc(sizeof(unsigned long));
 
 	char buffer[256];
 	char num_char[21];
@@ -315,8 +338,10 @@ static void request_handle_200(void) {
 	char *html_fd_region_base = region_id_to_base(html_fd_region);
 
 	simple_memcpy(metadata_region_base + METADATA_SOCKET_LEN_OFFSET, &socket_fd_len, sizeof(socket_fd_len));
+	debug_shared_counter_inc(sizeof(unsigned long long));
 	simple_memcpy(response_region_base, buffer, buffer_size);
 	simple_memcpy(response_region_base + buffer_size, html_fd_region_base, html_fd_len);
+	debug_borrowed_counter_inc(buffer_size + html_fd_len);
 
 	// delin response, so that the frontend can read it
 	sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_DE_LINEAR,
@@ -358,6 +383,7 @@ static void main(void) {
 
 		unsigned long html_fd_status;
 		simple_memcpy(&html_fd_status, metadata_region_base + METADATA_STATUS_OFFSET, sizeof(html_fd_status));
+		debug_shared_counter_inc(sizeof(unsigned long));
 
 		switch (html_fd_status) {
 			case HTML_FD_UNDEFINED:

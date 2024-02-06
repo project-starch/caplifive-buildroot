@@ -5,6 +5,14 @@
 
 #define C_PRINT(v) __asm__ volatile(".insn r 0x5b, 0x1, 0x43, x0, %0, x0" :: "r"(v))
 
+#define DEBUG_COUNTER_SHARED 10
+#define DEBUG_COUNTER_SHARED_TIMES 11
+#define DEBUG_COUNTER_BORROWED 12
+#define DEBUG_COUNTER_BORROWED_TIMES 13
+#define debug_counter_inc(counter_no, delta) __asm__ volatile(".insn r 0x5b, 0x1, 0x45, x0, %0, %1" :: "r"(counter_no), "r"(delta))
+#define debug_shared_counter_inc(delta) debug_counter_inc(DEBUG_COUNTER_SHARED, delta); debug_counter_inc(DEBUG_COUNTER_SHARED_TIMES, 1)
+#define debug_borrowed_counter_inc(delta) debug_counter_inc(DEBUG_COUNTER_BORROWED, delta); debug_counter_inc(DEBUG_COUNTER_BORROWED_TIMES, 1)
+
 #define METADATA_REGION_ID 1
 
 static char stack[4096];
@@ -65,11 +73,17 @@ static void nullbs_null_validate_conf(void)
 		rv = -EINVAL;
 		*((int *)(wo_region_base)) = rv;
 
+		debug_borrowed_counter_inc(sizeof(int));
+		debug_borrowed_counter_inc(sizeof(struct nullb_device));
+
 		return;
 	}
 
 	rv = 0;
 	*((int *)(wo_region_base)) = rv;
+
+	debug_borrowed_counter_inc(sizeof(int));
+	debug_borrowed_counter_inc(sizeof(struct nullb_device));
 
 	sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_DE_LINEAR,
 		wo_region, 0, 0, 0, 0, 0);
@@ -102,6 +116,8 @@ static void nullbs_nullb_to_queue(void)
 	struct nullb_queue *rv = nullb->queues + index;
 	*((struct nullb_queue **)(wo_region_base)) = rv;
 
+	debug_borrowed_counter_inc(sizeof(struct nullb_queue *));
+
 	sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_DE_LINEAR,
 		wo_region, 0, 0, 0, 0, 0);
 
@@ -127,6 +143,8 @@ static void nullbs_bio_op(void)
 	
 	*((enum req_op *)(wo_region_base)) = rv;
 
+	debug_borrowed_counter_inc(sizeof(enum req_op));
+
 	sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_DE_LINEAR,
 		wo_region, 0, 0, 0, 0, 0);
 	
@@ -150,6 +168,8 @@ static void nullbs_end_cmd_bio(void)
 
 	*((int *)(wo_region_base)) = cmd->error;
 
+	debug_borrowed_counter_inc(sizeof(int));
+
 	sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_DE_LINEAR,
 		wo_region, 0, 0, 0, 0, 0);
 
@@ -169,6 +189,7 @@ static __attribute__((naked)) int __init nullb_split_init(void)
 		char *metadata_region_base = REGION_ID_TO_BASE(metadata_region);
 
 		unsigned long function_code = *((unsigned long *)metadata_region_base);
+		debug_shared_counter_inc(sizeof(unsigned long));
 
         switch (function_code) {
             case NULLBS_NULL_VALIDATE_CONF:

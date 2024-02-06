@@ -23,7 +23,14 @@ static DECLARE_FAULT_ATTR(null_requeue_attr);
 static DECLARE_FAULT_ATTR(null_init_hctx_attr);
 #endif
 
-// shared regions
+#define DEBUG_COUNTER_SHARED 10
+#define DEBUG_COUNTER_SHARED_TIMES 11
+#define DEBUG_COUNTER_BORROWED 12
+#define DEBUG_COUNTER_BORROWED_TIMES 13
+#define debug_counter_inc(counter_no, delta) __asm__ volatile(".insn r 0x5b, 0x1, 0x45, x0, %0, %1" :: "r"(counter_no), "r"(delta))
+#define debug_shared_counter_inc(delta) debug_counter_inc(DEBUG_COUNTER_SHARED, delta); debug_counter_inc(DEBUG_COUNTER_SHARED_TIMES, 1)
+#define debug_borrowed_counter_inc(delta) debug_counter_inc(DEBUG_COUNTER_BORROWED, delta); debug_counter_inc(DEBUG_COUNTER_BORROWED_TIMES, 1)
+
 region_id_t metadata_region, ro_region, wo_region, nullb_dev_region;
 static char *metadata_region_base, *ro_region_base, *wo_region_base, *nullb_dev_region_base;
 
@@ -791,7 +798,9 @@ static void end_cmd(struct nullb_cmd *cmd)
 
 		unsigned long function_code = NULLBS_END_CMD_BIO;
 		memcpy(metadata_region_base, &function_code, sizeof(function_code));
+		debug_shared_counter_inc(sizeof(function_code));
 		memcpy(ro_region_base, cmd, sizeof(struct nullb_cmd));
+		debug_borrowed_counter_inc(sizeof(struct nullb_cmd));
 
 		sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_SHARE_ANNOTATED,
 			DOMAIN_NULLB_SPLIT, ro_region, CAPSTONE_ANNOTATION_PERM_IN, CAPSTONE_ANNOTATION_REV_BORROWED, 0, 0);
@@ -1309,7 +1318,9 @@ static int null_handle_bio(struct nullb_cmd *cmd)
 
 		unsigned long function_code = NULLBS_BIO_OP;
 		memcpy(metadata_region_base, &function_code, sizeof(function_code));
+		debug_shared_counter_inc(sizeof(function_code));
 		memcpy(ro_region_base, bio, sizeof(struct bio));
+		debug_borrowed_counter_inc(sizeof(struct bio));
 
 		sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_SHARE_ANNOTATED,
 			DOMAIN_NULLB_SPLIT, ro_region, CAPSTONE_ANNOTATION_PERM_IN, CAPSTONE_ANNOTATION_REV_BORROWED, 0, 0);
@@ -1427,7 +1438,9 @@ static void nullb_zero_read_cmd_buffer(struct nullb_cmd *cmd)
 
 	unsigned long function_code = NULLBS_BIO_OP;
 	memcpy(metadata_region_base, &function_code, sizeof(function_code));
+	debug_shared_counter_inc(sizeof(function_code));
 	memcpy(ro_region_base, cmd->bio, sizeof(struct bio));
+	debug_borrowed_counter_inc(sizeof(struct bio));
 
 	sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_SHARE_ANNOTATED,
 		DOMAIN_NULLB_SPLIT, ro_region, CAPSTONE_ANNOTATION_PERM_IN, CAPSTONE_ANNOTATION_REV_BORROWED, 0, 0);
@@ -1591,7 +1604,9 @@ static void null_submit_bio(struct bio *bio)
 
 	unsigned long function_code = NULLBS_NULLB_TO_QUEUE;
 	memcpy(metadata_region_base, &function_code, sizeof(function_code));
+	debug_shared_counter_inc(sizeof(function_code));
 	memcpy(ro_region_base, nullb, sizeof(struct nullb));
+	debug_borrowed_counter_inc(sizeof(struct nullb));
 
 	sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_SHARE_ANNOTATED,
 		DOMAIN_NULLB_SPLIT, ro_region, CAPSTONE_ANNOTATION_PERM_IN, CAPSTONE_ANNOTATION_REV_BORROWED, 0, 0);
@@ -1619,7 +1634,9 @@ static void null_submit_bio(struct bio *bio)
 
 	function_code = NULLBS_BIO_OP;
 	memcpy(metadata_region_base, &function_code, sizeof(function_code));
+	debug_shared_counter_inc(sizeof(function_code));
 	memcpy(ro_region_base, bio, sizeof(struct bio));
+	debug_borrowed_counter_inc(sizeof(struct bio));
 
 	sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_SHARE_ANNOTATED,
 		DOMAIN_NULLB_SPLIT, ro_region, CAPSTONE_ANNOTATION_PERM_IN, CAPSTONE_ANNOTATION_REV_BORROWED, 0, 0);
@@ -2157,7 +2174,9 @@ static int null_add_dev(struct nullb_device *dev)
 
 	unsigned long function_code = NULLBS_NULL_VALIDATE_CONF;
 	memcpy(metadata_region_base, &function_code, sizeof(function_code));
+	debug_shared_counter_inc(sizeof(function_code));
 	memcpy(nullb_dev_region_base, dev, sizeof(struct nullb_device));
+	debug_borrowed_counter_inc(sizeof(struct nullb_device));
 
 	sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_SHARE_ANNOTATED,
 		DOMAIN_NULLB_SPLIT, nullb_dev_region, CAPSTONE_ANNOTATION_PERM_INOUT, CAPSTONE_ANNOTATION_REV_BORROWED, 0, 0);

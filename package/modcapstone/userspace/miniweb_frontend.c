@@ -10,6 +10,20 @@
 #include <assert.h>
 #include "lib/libcapstone.h"
 
+#define DEBUG_COUNTER_SHARED 10
+#define DEBUG_COUNTER_SHARED_TIMES 11
+#define DEBUG_COUNTER_BORROWED 12
+#define DEBUG_COUNTER_BORROWED_TIMES 13
+#define DEBUG_COUNTER_TRANSFERRED_TRANSFERRED 14
+#define DEBUG_COUNTER_TRANSFERRED_TRANSFERRED_TIMES 15
+#define DEBUG_COUNTER_BORROWED_TRANSFERRED 16
+#define DEBUG_COUNTER_BORROWED_TRANSFERRED_TIMES 17
+#define debug_counter_inc(counter_no, delta) __asm__ volatile(".insn r 0x5b, 0x1, 0x45, x0, %0, %1" :: "r"(counter_no), "r"(delta))
+#define debug_shared_counter_inc(delta) debug_counter_inc(DEBUG_COUNTER_SHARED, delta); debug_counter_inc(DEBUG_COUNTER_SHARED_TIMES, 1)
+#define debug_borrowed_counter_inc(delta) debug_counter_inc(DEBUG_COUNTER_BORROWED, delta); debug_counter_inc(DEBUG_COUNTER_BORROWED_TIMES, 1)
+#define debug_transferred_transferred_counter_inc(delta) debug_counter_inc(DEBUG_COUNTER_TRANSFERRED_TRANSFERRED, delta); debug_counter_inc(DEBUG_COUNTER_TRANSFERRED_TRANSFERRED_TIMES, 1)
+#define debug_borrowed_transferred_counter_inc(delta) debug_counter_inc(DEBUG_COUNTER_BORROWED_TRANSFERRED, delta); debug_counter_inc(DEBUG_COUNTER_BORROWED_TRANSFERRED_TIMES, 1)
+
 #define CAPSTONE_ANNOTATION_PERM_IN 0x0
 #define CAPSTONE_ANNOTATION_PERM_INOUT 0x1
 #define CAPSTONE_ANNOTATION_PERM_OUT 0x2
@@ -96,10 +110,12 @@ void* workerThread(void *arg) {
     char* ptr = socket_fd_region_base;
     unsigned long long read_size_socket_fd = read(fd, ptr, 4096);
     memcpy(metadata_region_base + METADATA_SOCKET_LEN_OFFSET, &read_size_socket_fd, sizeof(read_size_socket_fd));
+    debug_shared_counter_inc(sizeof(unsigned long long));
     print_nobuf("read_size_socket_fd: %llu\n", read_size_socket_fd);
 
     unsigned long html_fd_status = HTML_FD_UNDEFINED;
     memcpy(metadata_region_base + METADATA_STATUS_OFFSET, &html_fd_status, sizeof(html_fd_status));
+    debug_shared_counter_inc(sizeof(unsigned long));
     
     shared_region_annotated(dom_id, socket_fd_region, CAPSTONE_ANNOTATION_PERM_IN, CAPSTONE_ANNOTATION_REV_BORROWED);
     shared_region_annotated(dom_id, response_region, CAPSTONE_ANNOTATION_PERM_OUT, CAPSTONE_ANNOTATION_REV_BORROWED);
@@ -110,12 +126,15 @@ void* workerThread(void *arg) {
 
     unsigned long html_fd_len; // also server as the path length
     memcpy(&html_fd_len, metadata_region_base + METADATA_HTML_LEN_OFFSET, sizeof(html_fd_len));
+    debug_shared_counter_inc(sizeof(unsigned long));
     memcpy(&html_fd_status, metadata_region_base + METADATA_STATUS_OFFSET, sizeof(html_fd_status));
+    debug_shared_counter_inc(sizeof(unsigned long));
     
     if (html_fd_status == HTML_FD_200RESPONSE) {
         print_nobuf("Backend request for 200 response\n");
         char* file_path = malloc(html_fd_len);
         memcpy(file_path, metadata_region_base + METADATA_HTML_PATH_OFFSET, html_fd_len);
+        debug_shared_counter_inc(html_fd_len);
         char prefix[] = "/nested/capstone_split/www";
         char* html_path = malloc(strlen(prefix) + html_fd_len);
         strcpy(html_path, prefix);
@@ -127,14 +146,19 @@ void* workerThread(void *arg) {
             // send 404 if file not found as well
             html_fd_status = HTML_FD_404RESPONSE;
             memcpy(metadata_region_base + METADATA_STATUS_OFFSET, &html_fd_status, sizeof(html_fd_status));
+            debug_shared_counter_inc(sizeof(unsigned long));
             print_nobuf("Couldn't open html file\n");
         }
         else {
             ptr = html_fd_region_base;
             unsigned long read_size_html_fd = read(html_fd, ptr, 4096);
             memcpy(metadata_region_base + METADATA_HTML_LEN_OFFSET, &read_size_html_fd, sizeof(read_size_html_fd));
+            debug_shared_counter_inc(sizeof(unsigned long));
             print_nobuf("read_size_html_fd: %d\n", read_size_html_fd);
             close(html_fd);
+
+            debug_borrowed_counter_inc(read_size_html_fd);
+            debug_borrowed_counter_inc(read_size_socket_fd);
 
             revoke_region(socket_fd_region);
             shared_region_annotated(dom_id, html_fd_region, CAPSTONE_ANNOTATION_PERM_IN, CAPSTONE_ANNOTATION_REV_BORROWED);
@@ -149,6 +173,7 @@ void* workerThread(void *arg) {
             // sync socket_fd_region to socket fd
             unsigned long long socket_fd_region_len;
             memcpy(&socket_fd_region_len, metadata_region_base + METADATA_SOCKET_LEN_OFFSET, sizeof(socket_fd_region_len));
+            debug_shared_counter_inc(sizeof(unsigned long long));
             print_nobuf("socket_fd_region_len: %llu\n", socket_fd_region_len);
             ptr = response_region_base;
             write(fd, ptr, socket_fd_region_len);
@@ -168,8 +193,12 @@ void* workerThread(void *arg) {
             ptr = html_fd_region_base;
             unsigned long read_size_html_fd = read(error_fd, ptr, 4096);
             memcpy(metadata_region_base + METADATA_HTML_LEN_OFFSET, &read_size_html_fd, sizeof(read_size_html_fd));
+            debug_shared_counter_inc(sizeof(unsigned long));
             print_nobuf("read_size_html_fd: %d\n", read_size_html_fd);
             close(error_fd);
+
+            debug_borrowed_counter_inc(read_size_html_fd);
+            debug_borrowed_counter_inc(read_size_socket_fd);
 
             revoke_region(socket_fd_region);
             shared_region_annotated(dom_id, html_fd_region, CAPSTONE_ANNOTATION_PERM_IN, CAPSTONE_ANNOTATION_REV_BORROWED);
@@ -184,6 +213,7 @@ void* workerThread(void *arg) {
             // sync socket_fd_region to socket fd
             unsigned long long socket_fd_region_len;
             memcpy(&socket_fd_region_len, metadata_region_base + METADATA_SOCKET_LEN_OFFSET, sizeof(socket_fd_region_len));
+            debug_shared_counter_inc(sizeof(unsigned long long));
             print_nobuf("socket_fd_region_len: %llu\n", socket_fd_region_len);
             ptr = response_region_base;
             write(fd, ptr, socket_fd_region_len);
@@ -194,12 +224,15 @@ void* workerThread(void *arg) {
     if (html_fd_status == HTML_FD_CGI) {
         print_nobuf("POST request is handled by CGI.\n");
 
+        debug_borrowed_transferred_counter_inc(read_size_socket_fd);
+
         revoke_region(socket_fd_region);
         revoke_region(response_region);
 
         // sync socket_fd_region to socket fd
         unsigned long long socket_fd_region_len;
         memcpy(&socket_fd_region_len, metadata_region_base + METADATA_SOCKET_LEN_OFFSET, sizeof(socket_fd_region_len));
+        debug_shared_counter_inc(sizeof(unsigned long long));
         print_nobuf("socket_fd_region_len: %llu\n", socket_fd_region_len);
         ptr = response_region_base;
         write(fd, ptr, socket_fd_region_len);
@@ -258,6 +291,7 @@ int main() {
     else {
         char* ptr = cgi_success_region_base;
         unsigned long read_size_cgi_success = read(cgi_success_fd, ptr, CGI_ELF_REGION_SIZE);
+        debug_transferred_transferred_counter_inc(read_size_cgi_success);
         print_nobuf("read_size_cgi_success: %lu\n", read_size_cgi_success);
         close(cgi_success_fd);
     }
@@ -272,6 +306,7 @@ int main() {
     else {
         char* ptr = cgi_fail_region_base;
         unsigned long read_size_cgi_fail = read(cgi_fail_fd, ptr, CGI_ELF_REGION_SIZE);
+        debug_transferred_transferred_counter_inc(read_size_cgi_fail);
         print_nobuf("read_size_cgi_fail: %lu\n", read_size_cgi_fail);
         close(cgi_fail_fd);
     }

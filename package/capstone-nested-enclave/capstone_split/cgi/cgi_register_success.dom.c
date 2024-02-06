@@ -28,6 +28,22 @@
 
 #define C_PRINT(v) __asm__ volatile(".insn r 0x5b, 0x1, 0x43, x0, %0, x0" :: "r"(v))
 
+#define DEBUG_COUNTER_SWITCH_C  2
+#define DEBUG_COUNTER_SHARED 10
+#define DEBUG_COUNTER_SHARED_TIMES 11
+#define DEBUG_COUNTER_BORROWED 12
+#define DEBUG_COUNTER_BORROWED_TIMES 13
+#define DEBUG_COUNTER_TRANSFERRED_TRANSFERRED 14
+#define DEBUG_COUNTER_TRANSFERRED_TRANSFERRED_TIMES 15
+#define DEBUG_COUNTER_BORROWED_TRANSFERRED 16
+#define DEBUG_COUNTER_BORROWED_TRANSFERRED_TIMES 17
+#define debug_counter_inc(counter_no, delta) __asm__ volatile(".insn r 0x5b, 0x1, 0x45, x0, %0, %1" :: "r"(counter_no), "r"(delta))
+#define debug_counter_tick(counter_no) debug_counter_inc((counter_no), 1)
+#define debug_shared_counter_inc(delta) debug_counter_inc(DEBUG_COUNTER_SHARED, delta); debug_counter_inc(DEBUG_COUNTER_SHARED_TIMES, 1)
+#define debug_borrowed_counter_inc(delta) debug_counter_inc(DEBUG_COUNTER_BORROWED, delta); debug_counter_inc(DEBUG_COUNTER_BORROWED_TIMES, 1)
+#define debug_transferred_transferred_counter_inc(delta) debug_counter_inc(DEBUG_COUNTER_TRANSFERRED_TRANSFERRED, delta); debug_counter_inc(DEBUG_COUNTER_TRANSFERRED_TRANSFERRED_TIMES, 1)
+#define debug_borrowed_transferred_counter_inc(delta) debug_counter_inc(DEBUG_COUNTER_BORROWED_TRANSFERRED, delta); debug_counter_inc(DEBUG_COUNTER_BORROWED_TRANSFERRED_TIMES, 1)
+
 void* regions[MAX_REGION_N];
 unsigned region_n = 0;
 
@@ -290,6 +306,9 @@ void register_success(void) {
     /* set the socket packet size */
     unsigned* shared_region = (unsigned *)metadata_region;
     shared_region[METADATA_SOCKET_LEN_OFFSET_UL] = response_size;
+
+    debug_borrowed_transferred_counter_inc(response_size);
+    debug_shared_counter_inc(SIZE_OF_ULL);
 }
 
 void dpi_call(void) {
@@ -332,5 +351,6 @@ __domentry __domreentry void cgi_success_entry(__domret void *ra, unsigned func,
     }
     ra = caller_dom;
 
+    debug_counter_tick(DEBUG_COUNTER_SWITCH_C);
     __domreturn(ra, __cgi_success_entry_reentry, 0);
 }
