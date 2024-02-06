@@ -10,7 +10,7 @@
 #define NULLBS_END_CMD_BIO 0x3
 
 #define DOMAIN_NULLB_SPLIT 0x0
-#define PRIME_REGION_ID 0x4
+#define PRIME_REGION_ID 11
 
 typedef unsigned long dom_id_t;
 typedef unsigned long region_id_t;

@@ -5,7 +5,7 @@
 #include "lib/libcapstone.h"
 
 #define DOMAIN_NULLB_SPLIT 0x0
-#define PRIME_REGION_ID 0x4
+#define PRIME_REGION_ID 11
 
 #define print_nobuf(...) do { printf(__VA_ARGS__); fflush(stdout); } while(0)
 

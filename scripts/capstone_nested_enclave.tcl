@@ -21,7 +21,11 @@ interact {
 interact {
     -o "# " {
         send "/miniweb_frontend.user &\r"
-        send "sleep 30\r"
+    }
+}
+
+interact {
+    -o "Waiting for incoming connections..." {
         send "busybox wget -O - http://localhost:8888/index.html\r"
         send "busybox wget -O - http://localhost:8888/null.html\r"
         send "busybox wget -O - http://localhost:8888/register.html\r"
