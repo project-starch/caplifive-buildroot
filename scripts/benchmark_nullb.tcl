@@ -23,7 +23,7 @@ interact {
     -o "# " {
         send "/null_blk.user\r"
         send "insmod /nullb/capstone_split/null_blk.ko\r"
-        send "/benchmark/null-blk | tee /benchmark-nullb.log\r"
+        send "/benchmark/null-blk\r"
         send "/print-counters\r"
         send "poweroff -f\r"
     }

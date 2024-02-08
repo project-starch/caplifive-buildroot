@@ -27,7 +27,7 @@ interact {
 
 interact {
     -o "Waiting for incoming connections..." {
-        send "/benchmark/nested-enclave | tee /benchmark-nested.log\r"
+        send "/benchmark/nested-enclave\r"
         return
     }
 }

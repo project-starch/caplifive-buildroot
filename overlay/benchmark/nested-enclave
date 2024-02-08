@@ -1,59 +1,70 @@
 #!/bin/sh
 
-total_num=50
+set -x
 
-count_index_html=10
-count_null_html=5
-count_register_html=10
-count_register_succ_a=10
-count_register_succ_b=10
-count_register_fail=5
-
-random() {
-  echo $(($RANDOM % $1))
-}
-
-echo "Starting benchmark"
-
-for i in $(seq 1 $count_index_html); do
-  random_num=$(random $total_num)
-  echo "random_num: $random_num"
-  eval "command_$random_num=\"busybox wget -O - http://localhost:8888/index.html\""
-done
-
-for i in $(seq 1 $count_null_html); do
-  random_num=$(random $total_num)
-  echo "random_num: $random_num"
-  eval "command_$random_num=\"busybox wget -O - http://localhost:8888/null.html\""
-done
-
-for i in $(seq 1 $count_register_html); do
-  random_num=$(random $total_num)
-  echo "random_num: $random_num"
-  eval "command_$random_num=\"busybox wget -O - http://localhost:8888/register.html\""
-done
-
-for i in $(seq 1 $count_register_succ_a); do
-  random_num=$(random $total_num)
-  echo "random_num: $random_num"
-  eval "command_$random_num=\"busybox wget --post-data 'name=Alex&email=alex@email.com' -O - http://localhost:8888/cgi/cgi_register_success.dom\""
-done
-
-for i in $(seq 1 $count_register_succ_b); do
-  random_num=$(random $total_num)
-  echo "random_num: $random_num"
-  eval "command_$random_num=\"busybox wget --post-data 'name=Bob&email=bob@email.com' -O - http://localhost:8888/cgi/cgi_register_success.dom\""
-done
-
-for i in $(seq 1 $count_register_fail); do
-  random_num=$(random $total_num)
-  echo "random_num: $random_num"
-  eval "command_$random_num=\"busybox wget --post-data 'name=Alex&email=alex@email.com' -O - http://localhost:8888/cgi/cgi_register_fail.dom\""
-done
-
-for i in $(seq 0 $((total_num - 1))); do
-  if eval "[ -n \"\${command_$i}\" ]"; then
-    echo "Executing $i: $(eval "echo \"\$command_$i\"")"
-    eval "$(eval "echo \"\$command_$i\"")"
-  fi
-done
+busybox wget --post-data 'name=Alex&email=alex@email.com' -O - http://localhost:8888/cgi/cgi_register_fail.dom
+busybox wget -O - http://localhost:8888/register.html
+busybox wget -O - http://localhost:8888/register.html
+busybox wget -O - http://localhost:8888/register.html
+busybox wget --post-data 'name=Bob&email=bob@email.com' -O - http://localhost:8888/cgi/cgi_register_success.dom
+busybox wget -O - http://localhost:8888/index.html
+busybox wget --post-data 'name=Alex&email=alex@email.com' -O - http://localhost:8888/cgi/cgi_register_fail.dom
+busybox wget --post-data 'name=Alex&email=alex@email.com' -O - http://localhost:8888/cgi/cgi_register_success.dom
+busybox wget -O - http://localhost:8888/index.html
+busybox wget -O - http://localhost:8888/null.html
+busybox wget --post-data 'name=Alex&email=alex@email.com' -O - http://localhost:8888/cgi/cgi_register_success.dom
+busybox wget -O - http://localhost:8888/index.html
+busybox wget --post-data 'name=Bob&email=bob@email.com' -O - http://localhost:8888/cgi/cgi_register_success.dom
+busybox wget --post-data 'name=Bob&email=bob@email.com' -O - http://localhost:8888/cgi/cgi_register_success.dom
+busybox wget --post-data 'name=Bob&email=bob@email.com' -O - http://localhost:8888/cgi/cgi_register_success.dom
+busybox wget --post-data 'name=Bob&email=bob@email.com' -O - http://localhost:8888/cgi/cgi_register_success.dom
+busybox wget --post-data 'name=Alex&email=alex@email.com' -O - http://localhost:8888/cgi/cgi_register_success.dom
+busybox wget -O - http://localhost:8888/index.html
+busybox wget --post-data 'name=Alex&email=alex@email.com' -O - http://localhost:8888/cgi/cgi_register_fail.dom
+busybox wget --post-data 'name=Alex&email=alex@email.com' -O - http://localhost:8888/cgi/cgi_register_success.dom
+busybox wget --post-data 'name=Alex&email=alex@email.com' -O - http://localhost:8888/cgi/cgi_register_success.dom
+busybox wget --post-data 'name=Bob&email=bob@email.com' -O - http://localhost:8888/cgi/cgi_register_success.dom
+busybox wget --post-data 'name=Bob&email=bob@email.com' -O - http://localhost:8888/cgi/cgi_register_success.dom
+busybox wget -O - http://localhost:8888/index.html
+busybox wget -O - http://localhost:8888/null.html
+busybox wget --post-data 'name=Alex&email=alex@email.com' -O - http://localhost:8888/cgi/cgi_register_success.dom
+busybox wget --post-data 'name=Bob&email=bob@email.com' -O - http://localhost:8888/cgi/cgi_register_success.dom
+busybox wget -O - http://localhost:8888/null.html
+busybox wget --post-data 'name=Bob&email=bob@email.com' -O - http://localhost:8888/cgi/cgi_register_success.dom
+busybox wget --post-data 'name=Alex&email=alex@email.com' -O - http://localhost:8888/cgi/cgi_register_success.dom
+busybox wget --post-data 'name=Alex&email=alex@email.com' -O - http://localhost:8888/cgi/cgi_register_success.dom
+busybox wget --post-data 'name=Alex&email=alex@email.com' -O - http://localhost:8888/cgi/cgi_register_fail.dom
+busybox wget --post-data 'name=Alex&email=alex@email.com' -O - http://localhost:8888/cgi/cgi_register_success.dom
+busybox wget --post-data 'name=Bob&email=bob@email.com' -O - http://localhost:8888/cgi/cgi_register_success.dom
+busybox wget -O - http://localhost:8888/null.html
+busybox wget --post-data 'name=Bob&email=bob@email.com' -O - http://localhost:8888/cgi/cgi_register_success.dom
+busybox wget --post-data 'name=Alex&email=alex@email.com' -O - http://localhost:8888/cgi/cgi_register_success.dom
+busybox wget --post-data 'name=Bob&email=bob@email.com' -O - http://localhost:8888/cgi/cgi_register_success.dom
+busybox wget -O - http://localhost:8888/register.html
+busybox wget --post-data 'name=Alex&email=alex@email.com' -O - http://localhost:8888/cgi/cgi_register_fail.dom
+busybox wget -O - http://localhost:8888/register.html
+busybox wget -O - http://localhost:8888/null.html
+busybox wget --post-data 'name=Alex&email=alex@email.com' -O - http://localhost:8888/cgi/cgi_register_fail.dom
+busybox wget --post-data 'name=Alex&email=alex@email.com' -O - http://localhost:8888/cgi/cgi_register_success.dom
+busybox wget -O - http://localhost:8888/index.html
+busybox wget --post-data 'name=Alex&email=alex@email.com' -O - http://localhost:8888/cgi/cgi_register_fail.dom
+busybox wget -O - http://localhost:8888/register.html
+busybox wget -O - http://localhost:8888/register.html
+busybox wget --post-data 'name=Bob&email=bob@email.com' -O - http://localhost:8888/cgi/cgi_register_success.dom
+busybox wget --post-data 'name=Alex&email=alex@email.com' -O - http://localhost:8888/cgi/cgi_register_success.dom
+busybox wget --post-data 'name=Alex&email=alex@email.com' -O - http://localhost:8888/cgi/cgi_register_success.dom
+busybox wget -O - http://localhost:8888/index.html
+busybox wget --post-data 'name=Alex&email=alex@email.com' -O - http://localhost:8888/cgi/cgi_register_success.dom
+busybox wget -O - http://localhost:8888/register.html
+busybox wget --post-data 'name=Alex&email=alex@email.com' -O - http://localhost:8888/cgi/cgi_register_success.dom
+busybox wget -O - http://localhost:8888/register.html
+busybox wget --post-data 'name=Bob&email=bob@email.com' -O - http://localhost:8888/cgi/cgi_register_success.dom
+busybox wget --post-data 'name=Alex&email=alex@email.com' -O - http://localhost:8888/cgi/cgi_register_success.dom
+busybox wget --post-data 'name=Bob&email=bob@email.com' -O - http://localhost:8888/cgi/cgi_register_success.dom
+busybox wget -O - http://localhost:8888/null.html
+busybox wget --post-data 'name=Alex&email=alex@email.com' -O - http://localhost:8888/cgi/cgi_register_success.dom
+busybox wget --post-data 'name=Alex&email=alex@email.com' -O - http://localhost:8888/cgi/cgi_register_fail.dom
+busybox wget --post-data 'name=Bob&email=bob@email.com' -O - http://localhost:8888/cgi/cgi_register_success.dom
+busybox wget --post-data 'name=Alex&email=alex@email.com' -O - http://localhost:8888/cgi/cgi_register_fail.dom
+busybox wget --post-data 'name=Bob&email=bob@email.com' -O - http://localhost:8888/cgi/cgi_register_success.dom
+busybox wget --post-data 'name=Alex&email=alex@email.com' -O - http://localhost:8888/cgi/cgi_register_fail.dom
