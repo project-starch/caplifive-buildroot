@@ -1,0 +1,49 @@
+#!/bin/sh
+
+set -e
+
+total_num=10
+
+count_index_html=2
+count_null_html=1
+count_register_html=2
+count_register_succ_a=2
+count_register_succ_b=2
+count_register_fail=1
+
+random() {
+  echo $(($RANDOM % $1))
+}
+
+echo "Starting benchmark"
+
+for i in $(seq 1 $count_index_html); do
+  eval "command_$(random $total_num)=\"busybox wget -O - http://localhost:8888/index.html\""
+done
+
+for i in $(seq 1 $count_null_html); do
+  eval "command_$(random $total_num)=\"busybox wget -O - http://localhost:8888/null.html\""
+done
+
+for i in $(seq 1 $count_register_html); do
+  eval "command_$(random $total_num)=\"busybox wget -O - http://localhost:8888/register.html\""
+done
+
+for i in $(seq 1 $count_register_succ_a); do
+  eval "command_$(random $total_num)=\"busybox wget --post-data 'name=Alex&email=alex@email.com' -O - http://localhost:8888/cgi/cgi_register_success.dom\""
+done
+
+for i in $(seq 1 $count_register_succ_b); do
+  eval "command_$(random $total_num)=\"busybox wget --post-data 'name=Bob&email=bob@email.com' -O - http://localhost:8888/cgi/cgi_register_success.dom\""
+done
+
+for i in $(seq 1 $count_register_fail); do
+  eval "command_$(random $total_num)=\"busybox wget --post-data 'name=Alex&email=alex@email.com' -O - http://localhost:8888/cgi/cgi_register_fail.dom\""
+done
+
+for i in $(seq 0 $((total_num - 1))); do
+  if eval "[ -n \"\${command_$i}\" ]"; then
+    echo "Executing: $(eval "echo \"\$command_$i\"")"
+    eval "$(eval "echo \"\$command_$i\"")"
+  fi
+done
