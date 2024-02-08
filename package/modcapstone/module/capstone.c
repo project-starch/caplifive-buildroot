@@ -21,7 +21,8 @@
 #define DEVICE_NAME "capstone"
 #define DEVICE_FILE_NAME "capstone"
 
-#define DOMAIN_DATA_SIZE (4096 * 4)
+#define DOMAIN_DATA_SIZE (4096 * 16)
+#define MAP_SIZE_LIMIT 0x10000000
 
 #define SUCCESS 0
 
@@ -180,7 +181,9 @@ static void ioctl_create_region(struct ioctl_region_create_args* __user args) {
 		regions[region_n].len = m_args.len;
 		regions[region_n].mmap_offset = pre_mmap_offset;
 		/* We need to round up to page size due to the limitation of mmap */
-		pre_mmap_offset = round_up(pre_mmap_offset + regions[region_n].len, PAGE_SIZE);
+		if(m_args.len < MAP_SIZE_LIMIT) {
+			pre_mmap_offset = round_up(pre_mmap_offset + regions[region_n].len, PAGE_SIZE);
+		}
 		++ region_n;
 	}
 
@@ -239,7 +242,9 @@ static void probe_regions(void) {
 			region_n, CAPSTONE_REGION_FIELD_LEN, 0, 0, 0, 0);
 		regions[region_n].len = sbi_res.value;
 		regions[region_n].mmap_offset = pre_mmap_offset;
-		pre_mmap_offset = round_up(pre_mmap_offset + regions[region_n].len, PAGE_SIZE);
+		if(regions[region_n].len < MAP_SIZE_LIMIT) {
+			pre_mmap_offset = round_up(pre_mmap_offset + regions[region_n].len, PAGE_SIZE);
+		}
 		++ region_n;
 	}
 	region_n = new_region_n;
@@ -313,8 +318,11 @@ static int device_mmap(struct file *filp, struct vm_area_struct *vma) {
 	int i;
 	size_t vm_offset = vma->vm_pgoff << PAGE_SHIFT;
 	size_t vm_size = vma->vm_end - vma->vm_start;
+	for(i = 0; i < region_n; i ++) {
+		pr_info("mmap[%d]: %lx %lx", regions[i].region_id, regions[i].base_paddr, regions[i].base_paddr + regions[i].len);
+	}
 	for(i = 0; i < region_n && 
-		!(vm_offset >= regions[i].mmap_offset && vm_offset + vm_size <= regions[i].mmap_offset + regions[i].len);
+		!(regions[i].len < MAP_SIZE_LIMIT && vm_offset >= regions[i].mmap_offset && vm_offset + vm_size <= regions[i].mmap_offset + regions[i].len);
 		i ++);
 	if(i >= region_n)
 		return -EINVAL;
