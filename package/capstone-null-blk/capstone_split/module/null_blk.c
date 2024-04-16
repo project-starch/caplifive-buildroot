@@ -1314,7 +1314,7 @@ static int null_handle_bio(struct nullb_cmd *cmd)
 	bio_for_each_segment(bvec, bio, iter) {
 		len = bvec.bv_len;
 	#ifdef __NULLB_SPLIT_ENABLED__
-		printk(KERN_INFO "enter domain: bio_op\n");
+		printk(KERN_INFO "enter domain: bio_op, null_handle_bio\n");
 
 		unsigned long function_code = NULLBS_BIO_OP;
 		memcpy(metadata_region_base, &function_code, sizeof(function_code));
@@ -1434,7 +1434,7 @@ static void nullb_zero_read_cmd_buffer(struct nullb_cmd *cmd)
 		return;
 
 #ifdef __NULLB_SPLIT_ENABLED__
-	printk(KERN_INFO "enter domain: bio_op\n");
+	printk(KERN_INFO "enter domain: bio_op, nullb_zero_read_cmd_buffer\n");
 
 	unsigned long function_code = NULLBS_BIO_OP;
 	memcpy(metadata_region_base, &function_code, sizeof(function_code));
@@ -1630,7 +1630,7 @@ static void null_submit_bio(struct bio *bio)
 #endif
 
 #ifdef __NULLB_SPLIT_ENABLED__
-	printk(KERN_INFO "enter domain: bio_op\n");
+	printk(KERN_INFO "enter domain: bio_op, null_submit_bio\n");
 
 	function_code = NULLBS_BIO_OP;
 	memcpy(metadata_region_base, &function_code, sizeof(function_code));
