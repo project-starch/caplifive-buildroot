@@ -284,7 +284,7 @@ init_client_domains()
 
 	for (i = 0; i < num_clients; ++i) {
 		filename = NULL;
-		asprintf(&filename, "dpdk_client%hhu.dom", i + 1);
+		asprintf(&filename, "/dpdk/dpdk_client%hhu.dom", i + 1);
 		if (filename == NULL) {
 			fprintf(stderr, "%d: Could not alloc memory for filename.", __LINE__);
 			exit(EXIT_FAILURE);
