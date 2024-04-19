@@ -13,6 +13,7 @@
 #include "libcapstone.h"
 
 #define MAX_REGION_N 64
+#define MAP_SIZE_LIMIT 0x10000000
 #define DEBUG_COUNTER_SWITCH_U 0
 #define debug_counter_inc(counter_no, delta) __asm__ volatile(".insn r 0x5b, 0x1, 0x45, x0, %0, %1" :: "r"(counter_no), "r"(delta))
 #define debug_counter_tick(counter_no) debug_counter_inc((counter_no), 1)
@@ -27,6 +28,7 @@ struct ElfCode {
 
 static int dev_fd;
 static size_t region_mmap_offsets[MAX_REGION_N];
+static int region_mmappable[MAX_REGION_N];
 static int region_n;
 
 static const unsigned char ELF_HEADER_MAGIC[4] = {
@@ -409,7 +411,11 @@ void *map_region(region_id_t region_id, unsigned long len) {
             return NULL;
         }
         region_mmap_offsets[region_n] = region_query_args.mmap_offset;
+        region_mmappable[region_n] = region_query_args.len < MAP_SIZE_LIMIT;
         ++ region_n;
+    }
+    if(!region_mmappable[region_id]) {
+        return NULL;
     }
     return mmap(NULL, len, PROT_READ | PROT_WRITE, MAP_SHARED,
         dev_fd, region_mmap_offsets[region_id]);

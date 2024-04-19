@@ -174,7 +174,7 @@ make build CAPSTONE_CC_PATH=<path-to-capstone-c-compiler-directory> A=capstone-d
 
 ### Quick Start
 
-> TL;DR: Run `CAPSTONE_QEMU_PATH=<path-to-capstone-qemu> expect capstone_dpdk_multi_process.tcl` in `scripts` to see the results.
+> TL;DR: Run `CAPSTONE_QEMU_PATH=<path-to-capstone-qemu> expect capstone_dpdk_multip.tcl` in `scripts` to see the results.
 
 Install the `capstone` kernel module:
 
@@ -193,7 +193,7 @@ echo 2048 > /sys/kernel/mm/hugepages/hugepages-2048kB/nr_hugepages
 Start the `dpdk-chat_server`:
 
 ```sh
-/dpdk-chat_server -l 0 -n 4 -- -p 3 -n <nr_of_domains> # in this case study, set nr_of_domains to 2
+/dpdk/dpdk-chat_server -l 0 -n 4 -- -p 3 -n <nr_of_domains> # in this case study, set nr_of_domains to 2
 ```
 
 While `dpdk-chat_server` is running, the internal command line provides commands such as `send_to_domain` and `receive_from_domain`.

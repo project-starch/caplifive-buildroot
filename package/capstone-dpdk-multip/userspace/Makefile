@@ -6,7 +6,8 @@ MULTI_PROCESS_DIR := $(EXAMPLES_DIR)/chat
 .PHONY: all clean
 
 all: setup_build
-	echo "start building" && \
+	rm -rf $(MULTI_PROCESS_DIR) && \
+	cp -r chat $(MULTI_PROCESS_DIR) && \
 	cd $(DPDK_DIR)/riscv-build && \
 	meson configure -Dexamples=chat/chat_server,chat/chat_client && \
 	ninja
