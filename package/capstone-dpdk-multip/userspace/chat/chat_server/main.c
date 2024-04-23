@@ -1,7 +1,3 @@
-/* SPDX-License-Identifier: BSD-3-Clause
- * Copyright(c) 2010-2014 Intel Corporation
- */
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -38,14 +34,19 @@
 #include "args_parser.h"
 #include "server_cmdline.h"
 
-/**
- * CAPSTONE
-*/
 #include "capstone.h"
 #include "libcapstone.h"
-/**
- * CAPSTONE
-*/
+
+#define CAPSTONE_ANNOTATION_PERM_IN 0x0
+#define CAPSTONE_ANNOTATION_PERM_INOUT 0x1
+#define CAPSTONE_ANNOTATION_PERM_OUT 0x2
+#define CAPSTONE_ANNOTATION_PERM_EXE 0x3
+#define CAPSTONE_ANNOTATION_PERM_FULL 0x4
+
+#define CAPSTONE_ANNOTATION_REV_DEFAULT 0x0
+#define CAPSTONE_ANNOTATION_REV_BORROWED 0x1
+#define CAPSTONE_ANNOTATION_REV_SHARED 0x2
+#define CAPSTONE_ANNOTATION_REV_TRANSFERRED 0x3
 
 /*
  * When doing reads from the NIC or the client queues,
@@ -296,7 +297,7 @@ init_client_domains()
 		region_id = create_region(4096);
 		char *region_base = map_region(region_id, 4096);
 		memset(region_base, 0, 4096);
-		share_region(dom_id, region_id);
+		shared_region_annotated(dom_id, region_id, CAPSTONE_ANNOTATION_PERM_INOUT, CAPSTONE_ANNOTATION_REV_SHARED);
 		client_domains[i].id = dom_id;
 		client_domains[i].region_base = region_base;
 
@@ -310,40 +311,12 @@ init_client_domains()
 int
 main(int __argc, char *__argv[])
 {
-	/**
-	 * CAPSTONE
-	*/
 	int retval = 0;
 
-	fprintf(stdout, "Capstone init\n");
     retval = capstone_init();
     if (retval) {
         return retval;
     }
-
-    // dom_id_t dom_id;
-    // dom_id = create_dom(file_name, NULL);
-    // printf("Created domain ID = %lu\n", dom_id);
-
-    // region_id_t region_id = create_region(4096);
-    // char *region_base = map_region(region_id, 4096);
-	// memset(region_base, 0, 4096);
-    // share_region(dom_id, region_id);
-
-    /**
-     * Make memory domain vizible to the client processes
-    */
-    // set_domain_id(dom_id);
-
-    // for (unsigned i = 1; i <= times; i ++) {
-    //     unsigned long dom_retval = call_dom(dom_id);
-    //     printf("Called dom (%u-th time) retval = %lu\n", i, dom_retval);
-    // }
-
-
-	/**
-	 * CAPSTONE
-	*/
 
     int ret = 0;
     // unsigned lcore_id;

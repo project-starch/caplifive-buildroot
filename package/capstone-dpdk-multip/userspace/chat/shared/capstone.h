@@ -64,12 +64,6 @@ struct ioctl_dom_sched_args {
     // TODO: more?
 };
 
-struct ioctl_dom_get_data_args {
-    dom_id_t dom_id;
-    unsigned long retval;
-};
-
-
 #define IOCTL_DOM_CREATE			_IOWR(IOC_MAGIC, 0, struct ioctl_dom_create_args)
 #define IOCTL_DOM_CALL  			_IOWR(IOC_MAGIC, 1, struct ioctl_dom_call_args)
 #define IOCTL_REGION_CREATE         _IOWR(IOC_MAGIC, 2, struct ioctl_region_create_args)
@@ -79,6 +73,5 @@ struct ioctl_dom_get_data_args {
 #define IOCTL_DOM_SCHEDULE          _IOWR(IOC_MAGIC, 6, struct ioctl_dom_sched_args)
 #define IOCTL_REGION_SHARE_ANNOTATED          _IOWR(IOC_MAGIC, 7, struct ioctl_region_share_annotated_args)
 #define IOCTL_REGION_REVOKE          _IOWR(IOC_MAGIC, 8, struct ioctl_region_revoke_args)
-#define IOCTL_DOM_DATA_GET          _IOWR(IOC_MAGIC, 9, struct ioctl_dom_get_data_args)
 
 #endif

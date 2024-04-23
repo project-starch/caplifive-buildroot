@@ -17,13 +17,13 @@
 
 #define PROD_NUMBER 25
 
-static unsigned *g_shared_region;
-
 #define DEBUG_COUNTER_SWITCH_C  2
 #define debug_counter_inc(counter_no, delta) __asm__ volatile(".insn r 0x5b, 0x1, 0x45, x0, %0, %1" :: "r"(counter_no), "r"(delta))
 #define debug_counter_tick(counter_no) debug_counter_inc((counter_no), 1)
 
-__domentry __domreentry void dpdk_client2(__domret void *ra, unsigned action, unsigned *res)
+static unsigned *g_shared_region;
+
+__domentry __domreentry void dpdk_client1(__domret void *ra, unsigned action, unsigned *res)
 {
     unsigned i = 0;
 
@@ -31,8 +31,6 @@ __domentry __domreentry void dpdk_client2(__domret void *ra, unsigned action, un
         g_shared_region = res;
     } else {
         unsigned op = g_shared_region[0];
-        // unsigned op = *g_shared_region;
-        // op = op << 32 >> 32;
 
         if (op == CLIENT_PUT) {
             /**
@@ -42,17 +40,12 @@ __domentry __domreentry void dpdk_client2(__domret void *ra, unsigned action, un
             /**
              * Print data from the server domain for now
              */
-            // unsigned vars_nr = *(g_shared_region + 4);
             unsigned vars_nr = g_shared_region[1];
             g_shared_region[1] = 0;
-            // *(g_shared_region + 4) = 0;
-            // vars_nr = vars_nr << 32 >> 32;
 
             PRINT(vars_nr);
 
             while (i < vars_nr) {
-                // unsigned val = *(g_shared_region + 8 + 4 * i);
-                // val = val << 32 >> 32;
                 unsigned val = g_shared_region[i + 2];
                 PRINT(val);
 
@@ -67,13 +60,12 @@ __domentry __domreentry void dpdk_client2(__domret void *ra, unsigned action, un
             }
 
             *g_shared_region = ACK;
-            // g_shared_region[0] = ACK;
             /**
              * Return the number of consumed values so the serve knows if more domains calls are needed
             */
             *res = vars_nr;
             debug_counter_tick(DEBUG_COUNTER_SWITCH_C);
-            __domreturn(ra, __dpdk_client2_reentry, 0);
+            __domreturn(ra, __dpdk_client1_reentry, 0);
         }
         if (op == SERVER_GET) {
             /**
@@ -83,6 +75,7 @@ __domentry __domreentry void dpdk_client2(__domret void *ra, unsigned action, un
             /**
              * Produce values for the server process
             */
+
         //    *g_shared_region = SERVER_PUT;  /** Set the proper operation for the server - disabled for now */
         //    *(g_shared_region + 4) = PROD_NUMBER;
 
@@ -90,20 +83,17 @@ __domentry __domreentry void dpdk_client2(__domret void *ra, unsigned action, un
 
             i = 0;
             while (i < PROD_NUMBER) {
-                // *(g_shared_region + 8 + 4 * i) = i * i * i * i;
-
-                g_shared_region[i + 2] = i * i * i * i * i;
+                g_shared_region[i + 2] = i * i * i * i;
                 i = i + 1;
             }
 
-            // *g_shared_region = ACK;
             g_shared_region[0] = ACK;
             *res = PROD_NUMBER;
             debug_counter_tick(DEBUG_COUNTER_SWITCH_C);
-            __domreturn(ra, __dpdk_client2_reentry, 0);
+            __domreturn(ra, __dpdk_client1_reentry, 0);
         }
     }
 
     debug_counter_tick(DEBUG_COUNTER_SWITCH_C);
-    __domreturn(ra, __dpdk_client2_reentry, 0);
+    __domreturn(ra, __dpdk_client1_reentry, 0);
 }

@@ -31,8 +31,6 @@ __domentry __domreentry void dpdk_client1(__domret void *ra, unsigned action, un
         g_shared_region = res;
     } else {
         unsigned op = g_shared_region[0];
-        // unsigned op = *g_shared_region;
-        // op = op << 32 >> 32;
 
         if (op == CLIENT_PUT) {
             /**
@@ -42,17 +40,12 @@ __domentry __domreentry void dpdk_client1(__domret void *ra, unsigned action, un
             /**
              * Print data from the server domain for now
              */
-            // unsigned vars_nr = *(g_shared_region + 4);
             unsigned vars_nr = g_shared_region[1];
             g_shared_region[1] = 0;
-            // *(g_shared_region + 4) = 0;
-            // vars_nr = vars_nr << 32 >> 32;
 
             PRINT(vars_nr);
 
             while (i < vars_nr) {
-                // unsigned val = *(g_shared_region + 8 + 4 * i);
-                // val = val << 32 >> 32;
                 unsigned val = g_shared_region[i + 2];
                 PRINT(val);
 
@@ -67,7 +60,6 @@ __domentry __domreentry void dpdk_client1(__domret void *ra, unsigned action, un
             }
 
             *g_shared_region = ACK;
-            // g_shared_region[0] = ACK;
             /**
              * Return the number of consumed values so the serve knows if more domains calls are needed
             */
@@ -83,6 +75,7 @@ __domentry __domreentry void dpdk_client1(__domret void *ra, unsigned action, un
             /**
              * Produce values for the server process
             */
+
         //    *g_shared_region = SERVER_PUT;  /** Set the proper operation for the server - disabled for now */
         //    *(g_shared_region + 4) = PROD_NUMBER;
 
@@ -90,13 +83,10 @@ __domentry __domreentry void dpdk_client1(__domret void *ra, unsigned action, un
 
             i = 0;
             while (i < PROD_NUMBER) {
-                // *(g_shared_region + 8 + 4 * i) = i * i * i * i;
-
                 g_shared_region[i + 2] = i * i * i * i;
                 i = i + 1;
             }
 
-            // *g_shared_region = ACK;
             g_shared_region[0] = ACK;
             *res = PROD_NUMBER;
             debug_counter_tick(DEBUG_COUNTER_SWITCH_C);

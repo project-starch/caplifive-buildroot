@@ -79,7 +79,7 @@ To install or uninstall the kernel module,
 
 ```sh
 insmod /capstone.ko # install
-insmod -r capstone  # uninstall
+rmmod capstone  # uninstall
 ```
 
 After the kernel module is installed, you can run the test program
@@ -198,7 +198,7 @@ Start the `dpdk-chat_server`:
 
 While `dpdk-chat_server` is running, the internal command line provides commands such as `send_to_domain` and `receive_from_domain`.
 
-You can now communicate with any initialized domain based on its ID (which usually start from 0) with these 2 commands in the internal command line, e.g.,
+You can now communicate with any initialized domain based on its ID (which starts from 0) with these 2 commands in the internal command line, e.g.,
 
 ```sh
 send_to_domain 0 5912 214 9124124 94 2014 1294 1204 29
