@@ -10,8 +10,6 @@ endif
 all_examples = [
         'bbdev_app',
         'bond',
-        'chat/chat_client',
-        'chat/chat_server',
         'cmdline',
         'distributor',
         'dma',
@@ -36,6 +34,7 @@ all_examples = [
         'l3fwd-graph',
         'l3fwd-power',
         'link_status_interrupt',
+        'multip_server',
         'multi_process/client_server_mp/mp_client',
         'multi_process/client_server_mp/mp_server',
         'multi_process/hotplug_mp',

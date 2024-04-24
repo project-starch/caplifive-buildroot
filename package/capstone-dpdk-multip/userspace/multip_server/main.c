@@ -285,7 +285,7 @@ init_client_domains()
 
 	for (i = 0; i < num_clients; ++i) {
 		filename = NULL;
-		asprintf(&filename, "/dpdk/dpdk_client%hhu.dom", i + 1);
+		asprintf(&filename, "/dpdk-multip/dpdk-multip_client_%hhu.dom", i);
 		if (filename == NULL) {
 			fprintf(stderr, "%d: Could not alloc memory for filename.", __LINE__);
 			exit(EXIT_FAILURE);
@@ -360,7 +360,6 @@ main(int __argc, char *__argv[])
 	// 	rte_eal_remote_launch(fs[i++], NULL, lcore_id);
 	// }
 
-	// send_to_client_domain(dom_id, region_base);
 	start_cmdline();
 	asm volatile (".insn r 0x5b, 0x1, 0x46, x0, x0, x0");
 

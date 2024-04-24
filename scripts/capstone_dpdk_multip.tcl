@@ -17,7 +17,7 @@ interact {
         send "mkdir -p /mnt/huge\r"
         send "mount -t hugetlbfs nodev /mnt/huge\r"
         send "echo 2048 > /sys/kernel/mm/hugepages/hugepages-2048kB/nr_hugepages\r"
-        send "/dpdk/dpdk-chat_server -l 0 -n 4 -- -p 3 -n 2\r"
+        send "/dpdk-multip/dpdk-multip_server -l 0 -n 4 -- -p 3 -n 2\r"
         return
     }
 }

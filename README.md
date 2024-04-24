@@ -208,9 +208,7 @@ send_to_domain 1 592 5012 59 10 27 249 2419 20
 And then,
 
 ```sh
-# The result is "5912 214 9124124 94 2014 1294 1204 29"
 receive_from_domain 0
-# The result is "592 5012 59 10 27 249 2419 20"
 receive_from_domain 1
 ```
 

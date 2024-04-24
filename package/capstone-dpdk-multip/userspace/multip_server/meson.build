@@ -6,16 +6,15 @@
 # To build this example as a standalone application with an already-installed
 # DPDK instance, use 'make'
 
-includes += include_directories('../shared')
+includes += include_directories('lib')
 includes += include_directories('cmdline')
-includes += include_directories('communication')
 
 allow_experimental_apis = true
 sources = files(
-        '../shared/commons.c',
-        '../shared/libcapstone.c',
-        'cmdline/client_cmdline.c',
-        'communication/communication.c',
+        'lib/commons.c',
+        'lib/libcapstone.c',
+        'cmdline/server_cmdline.c',
+        'args_parser.c',
         'init.c',
         'main.c'
 )

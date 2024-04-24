@@ -30,45 +30,6 @@ stop_server(void)
 
 static struct rte_mempool *message_pool;
 
-static void cmd_send_parsed(void *parsed_result,
-        __rte_unused struct cmdline *cl,
-        __rte_unused void *data)
-{
-    void *msg = NULL;
-    struct cmd_send_res *res = parsed_result;
-
-    if (rte_mempool_get(message_pool, &msg) < 0)
-        rte_panic("Failed to get message buffer\n");
-
-    fprintf(stderr, "Sending %s to %s.\n", res->m_msg, res->m_receiver);
-
-    // strlcpy((char *)msg, res->m_msg, STR_MULTI_TOKEN_SIZE);
-
-    // if (rte_ring_enqueue(send_ring, msg) < 0) {
-    //     printf("Failed to send message - message discarded\n");
-    //     rte_mempool_put(message_pool, msg);
-    // }
-}
-
-cmdline_parse_token_string_t cmd_send_action =
-    TOKEN_STRING_INITIALIZER(struct cmd_send_res, m_action, "send");
-cmdline_parse_token_string_t cmd_send_receiver =
-    TOKEN_STRING_INITIALIZER(struct cmd_send_res, m_receiver, NULL);
-cmdline_parse_token_string_t cmd_send_msg =
-    TOKEN_STRING_INITIALIZER(struct cmd_send_res, m_msg, TOKEN_STRING_MULTI);
-
-cmdline_parse_inst_t cmd_send = {
-    .f = cmd_send_parsed,  /* function to call */
-    .data = NULL,      /* 2nd arg of func */
-    .help_str = "send a string to another process",
-    .tokens = {        /* token list, NULL terminated */
-            (void *)&cmd_send_action,
-            (void *)&cmd_send_receiver,
-            (void *)&cmd_send_msg,
-            NULL,
-    },
-};
-
 static void
 send_to_client_domain(dom_id_t __dom_id, void *__region_base, char *__msg_arr)
 {
@@ -264,11 +225,9 @@ cmdline_parse_inst_t cmd_quit = {
 
 /****** CONTEXT (list of instruction) */
 cmdline_parse_ctx_t simple_mp_ctx[] = {
-    (cmdline_parse_inst_t *)&cmd_send,
     (cmdline_parse_inst_t *)&cmd_send_to_domain,
     (cmdline_parse_inst_t *)&cmd_receive_from_domain,
     (cmdline_parse_inst_t *)&cmd_quit,
-    // (cmdline_parse_inst_t *)&cmd_help,
     NULL,
 };
 
