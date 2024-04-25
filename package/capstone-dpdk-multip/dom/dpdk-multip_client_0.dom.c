@@ -56,7 +56,7 @@ void dpdk_client(void)
     if (op == SERVER_SEND) {
         unsigned vars_nr = shared_region[1];
         void* send_region = regions[1];
-        unsigned* send_region_ptr = (unsigned *)send_region;
+        __linear unsigned* send_region_ptr = (unsigned *)send_region;
 
         while (i < vars_nr) {
             unsigned val = send_region_ptr[i];
@@ -65,10 +65,12 @@ void dpdk_client(void)
 
         shared_region[0] = ACK;
         debug_shared_counter_inc(SIZE_OF_ULL);
+
+        __delin(send_region_ptr);
     }
     if (op == SERVER_RECEIVE) {
         void* receive_region = regions[1];
-        unsigned* receive_region_ptr = (unsigned *)receive_region;
+        __linear unsigned* receive_region_ptr = (unsigned *)receive_region;
 
         i = 0;
         while (i < PROD_NUMBER) {
@@ -80,6 +82,8 @@ void dpdk_client(void)
         shared_region[0] = ACK;
         shared_region[1] = PROD_NUMBER;
         debug_shared_counter_inc(2 * SIZE_OF_ULL);
+
+        __delin(receive_region_ptr);
     }
 }
 
