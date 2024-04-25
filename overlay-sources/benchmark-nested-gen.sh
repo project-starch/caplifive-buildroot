@@ -1,13 +1,13 @@
 #!/bin/bash
 
-total_num=100
+total_num=1000
 
-count_index_html=20
-count_null_html=10
-count_register_html=20
-count_register_succ_a=20
-count_register_succ_b=20
-count_register_fail=10
+count_index_html=250
+count_null_html=50
+count_register_html=150
+count_register_succ_a=250
+count_register_succ_b=250
+count_register_fail=50
 
 random() {
   echo $(($RANDOM % $1))

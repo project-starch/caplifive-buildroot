@@ -1,11 +1,11 @@
 #!/bin/bash
 
-total_num=100
+total_num=1000
 
-count_send_0=30
-count_send_1=20
-count_receive_0=30
-count_receive_1=20
+count_send_0=300
+count_send_1=200
+count_receive_0=300
+count_receive_1=200
 
 random() {
   echo $(($RANDOM % $1))

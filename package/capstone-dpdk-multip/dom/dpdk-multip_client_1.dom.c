@@ -110,7 +110,7 @@ unsigned handle_dpi(unsigned func, void *arg) {
     return handled;
 }
 
-__domentry __domreentry void dpdk_multip_client_0_entry(__domret void *ra, unsigned func, unsigned *buf) {
+__domentry __domreentry void dpdk_multip_client_entry(__domret void *ra, unsigned func, unsigned *buf) {
     __domret void *caller_dom = ra;
     
     unsigned handled = handle_dpi(func, buf);
@@ -121,5 +121,5 @@ __domentry __domreentry void dpdk_multip_client_0_entry(__domret void *ra, unsig
     ra = caller_dom;
 
     debug_counter_tick(DEBUG_COUNTER_SWITCH_C);
-    __domreturn(ra, __dpdk_multip_client_0_entry_reentry, 0);
+    __domreturn(ra, __dpdk_multip_client_entry_reentry, 0);
 }
