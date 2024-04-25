@@ -73,7 +73,6 @@ send_to_client_domain(dom_id_t __dom_id, struct client_domain __client_domain, c
 
         tok = strtok(NULL, " ");
     }
-    debug_borrowed_counter_inc(nr_vals * sizeof(unsigned long long));
     printf("\n");
 
     /*fill up metadata*/
@@ -82,6 +81,7 @@ send_to_client_domain(dom_id_t __dom_id, struct client_domain __client_domain, c
     debug_shared_counter_inc(2 * sizeof(unsigned long long));
 
     shared_region_annotated(dom_id, send_region_id, CAPSTONE_ANNOTATION_PERM_IN, CAPSTONE_ANNOTATION_REV_BORROWED);
+    debug_borrowed_counter_inc(nr_vals * sizeof(unsigned long long));
 
 	call_dom(__dom_id);
     revoke_region(send_region_id);

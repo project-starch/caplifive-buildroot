@@ -20,7 +20,7 @@
 
 #define SIZE_OF_ULL 8
 
-#define PROD_NUMBER 25
+#define PROD_NUMBER 40
 
 #define DEBUG_COUNTER_SWITCH_C  2
 #define DEBUG_COUNTER_SHARED 10
@@ -72,10 +72,10 @@ void dpdk_client(void)
 
         i = 0;
         while (i < PROD_NUMBER) {
-            receive_region_ptr[i] = i * i * i;
+            receive_region_ptr[i] = i + i + i + i;
             i = i + 1;
         }
-        debug_shared_counter_inc(i * SIZE_OF_ULL);
+        debug_borrowed_counter_inc(i * SIZE_OF_ULL);
 
         shared_region[0] = ACK;
         shared_region[1] = PROD_NUMBER;
