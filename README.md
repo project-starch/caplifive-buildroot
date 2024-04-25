@@ -153,7 +153,7 @@ If you want to remove the device, simple run:
 rmmod null_blk
 ```
 
-## Case Study: DPDK Multi-process Sample Application
+## Case Study: DPDK Multi-Process Sample Application
 
 ### Dependencies
 
@@ -265,3 +265,69 @@ busybox wget --post-data "name=Bob&email=bob@email.com" -O - http://localhost:88
 ```sh
 busybox wget --post-data "name=Alex&email=alex@email.com" -O - http://localhost:8888/cgi/cgi_register_fail.dom
 ```
+
+## Case Study Benchmarks
+
+### Benchmark Generation
+
+> TL;DR: Use benchmarks in `overlay/benchmark`. No need for generation.
+
+Simple run the scripts in `overlay-sources` to randomly generate the benchmarks for each case study:
+
+```sh
+cd overlay-sources
+./benchmark-nullb-gen.sh > ../overlay/benchmark/null-blk # for block device driver
+./benchmark-dpdk-gen.sh > ../overlay/benchmark/dpdk_multip_commands # for DPDK multi-process sample application
+./benchmark-nested-gen.sh > ../overlay/benchmark/nested-enclave # for web server in nested domains
+```
+
+### Benchmarking
+
+Install `expect` on your machine. If you are on Ubuntu/Debian, simple run the following command:
+
+```sh
+sudo apt install expect
+```
+
+Simple run the scripts in `scripts` as below to run the benchmarks automatically:
+
+```sh
+cd scripts
+# replace <<path-to-capstone-qemu> to the real path on your machine
+CAPSTONE_QEMU_PATH=<path-to-capstone-qemu> expect benchmark_nullb.tcl
+CAPSTONE_QEMU_PATH=<path-to-capstone-qemu> expect benchmark_dpdk.tcl
+CAPSTONE_QEMU_PATH=<path-to-capstone-qemu> expect benchmark_nested.tcl
+```
+
+### Benchmark Results
+
+At the end of benchmarking, the results will be shown in the following format:
+
+```
+[CAPSTONE] CAPSTONE DEBUG COUNTERS
+[CAPSTONE] counter[<index>] = <value>
+[CAPSTONE] counter[<index>] = <value>
+...
+```
+
+Each index corresponds to a profiling result in our benchmark, the correspondence relationship is shown in the table below:
+
+| Index | Profiling Subject |
+| :---: | :---------------: |
+| 0 | Context switching (U-mode) |
+| 1 | Context switching (S-mode) |
+| 2 | Context switching (C/M-mode) |
+| 3 | Interrupt handling |
+| 4 | Memory access fault handling |
+| 5 - 9 | Not used yet |
+| 10 | Asynchronous sharing (bytes) |
+| 11 | Asynchronous sharing (times) |
+| 12 | Synchronous immutable borrowing (bytes) |
+| 13 | Synchronous immutable borrowing (times) |
+| 14 | Synchronous double transfer (bytes) |
+| 15 | Synchronous double transfer (times) |
+| 16 | Synchronous immutable transferred borrowing (bytes) |
+| 17 | Synchronous immutable transferred borrowing (times) |
+| 18 | Synchronous mutable transferred borrowing (bytes) |
+| 19 | Synchronous mutable transferred borrowing (times) |
+| 20 - 31 | Not used yet |

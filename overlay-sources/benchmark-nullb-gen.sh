@@ -33,6 +33,11 @@ for i in $(seq 1 $count_read); do
   commands[$random_num]="dd if=/dev/nullb0 bs=1024 count=10"
 done
 
+echo "#!/bin/sh"
+echo ""
+echo "set -x"
+echo ""
+
 for command in "${commands[@]}"; do
   if [[ -n $command ]]; then
     echo "$command"

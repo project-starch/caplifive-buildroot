@@ -45,6 +45,11 @@ for i in $(seq 1 $count_register_fail); do
   commands[$random_num]="busybox wget --post-data 'name=Alex&email=alex@email.com' -O - http://localhost:8888/cgi/cgi_register_fail.dom"
 done
 
+echo "#!/bin/sh"
+echo ""
+echo "set -x"
+echo ""
+
 for command in "${commands[@]}"; do
   if [[ -n $command ]]; then
     echo "$command"
