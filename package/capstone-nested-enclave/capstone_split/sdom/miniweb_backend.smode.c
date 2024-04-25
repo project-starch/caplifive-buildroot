@@ -1,5 +1,6 @@
 #include "miniweb_backend.smode.h"
 
+#define DEBUG_COUNTER_SWITCH_S  1
 #define DEBUG_COUNTER_SHARED 10
 #define DEBUG_COUNTER_SHARED_TIMES 11
 #define DEBUG_COUNTER_BORROWED 12
@@ -11,6 +12,7 @@
 #define DEBUG_COUNTER_MUTABLE_BORROWED_TRANSFERRED 18
 #define DEBUG_COUNTER_MUTABLE_BORROWED_TRANSFERRED_TIMES 19
 #define debug_counter_inc(counter_no, delta) __asm__ volatile(".insn r 0x5b, 0x1, 0x45, x0, %0, %1" :: "r"(counter_no), "r"(delta))
+#define debug_counter_tick(counter_no) debug_counter_inc((counter_no), 1)
 #define debug_shared_counter_inc(delta) debug_counter_inc(DEBUG_COUNTER_SHARED, delta); debug_counter_inc(DEBUG_COUNTER_SHARED_TIMES, 1)
 #define debug_borrowed_counter_inc(delta) debug_counter_inc(DEBUG_COUNTER_BORROWED, delta); debug_counter_inc(DEBUG_COUNTER_BORROWED_TIMES, 1)
 #define debug_double_transferred_counter_inc(delta) debug_counter_inc(DEBUG_COUNTER_DOUBLE_TRANSFERRED, delta); debug_counter_inc(DEBUG_COUNTER_DOUBLE_TRANSFERRED_TIMES, 1)
@@ -142,20 +144,26 @@ static void request_handle_cgi(unsigned long register_success) {
 	if (register_success == 1) {
 		sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_SHARE_ANNOTATED,
 			cgi_success_dom_id, socket_fd_region, CAPSTONE_ANNOTATION_PERM_IN, CAPSTONE_ANNOTATION_REV_TRANSFERRED, 0, 0);
+		debug_counter_tick(DEBUG_COUNTER_SWITCH_S);
 		sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_SHARE_ANNOTATED,
 			cgi_success_dom_id, response_region, CAPSTONE_ANNOTATION_PERM_OUT, CAPSTONE_ANNOTATION_REV_TRANSFERRED, 0, 0);
+		debug_counter_tick(DEBUG_COUNTER_SWITCH_S);
 
 		sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_DOM_CALL,
 			cgi_success_dom_id, 0, 0, 0, 0, 0);
+		debug_counter_tick(DEBUG_COUNTER_SWITCH_S);
 	}
 	else {
 		sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_SHARE_ANNOTATED,
 			cgi_fail_dom_id, socket_fd_region, CAPSTONE_ANNOTATION_PERM_IN, CAPSTONE_ANNOTATION_REV_TRANSFERRED, 0, 0);
+		debug_counter_tick(DEBUG_COUNTER_SWITCH_S);
 		sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_SHARE_ANNOTATED,
 			cgi_fail_dom_id, response_region, CAPSTONE_ANNOTATION_PERM_OUT, CAPSTONE_ANNOTATION_REV_TRANSFERRED, 0, 0);
+		debug_counter_tick(DEBUG_COUNTER_SWITCH_S);
 		
 		sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_DOM_CALL,
 			cgi_fail_dom_id, 0, 0, 0, 0, 0);
+		debug_counter_tick(DEBUG_COUNTER_SWITCH_S);
 	}
 
 	// pop regions
@@ -378,8 +386,10 @@ static void main(void) {
 
 	sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_SHARE_ANNOTATED,
 		cgi_success_dom_id, metadata_region, CAPSTONE_ANNOTATION_PERM_INOUT, CAPSTONE_ANNOTATION_REV_SHARED, 0, 0);
+	debug_counter_tick(DEBUG_COUNTER_SWITCH_S);
 	sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_SHARE_ANNOTATED,
 		cgi_fail_dom_id, metadata_region, CAPSTONE_ANNOTATION_PERM_INOUT, CAPSTONE_ANNOTATION_REV_SHARED, 0, 0);
+	debug_counter_tick(DEBUG_COUNTER_SWITCH_S);
 
 	while (1) {
 		unsigned long rv = 0;

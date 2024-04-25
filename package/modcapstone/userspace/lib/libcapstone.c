@@ -370,6 +370,7 @@ region_id_t create_region(unsigned long len) {
         .len = len,
         .region_id = -1
     };
+    debug_counter_tick(DEBUG_COUNTER_SWITCH_U);
     ioctl(dev_fd, IOCTL_REGION_CREATE, (unsigned long)&args);
     return args.region_id;
 }
@@ -382,6 +383,7 @@ void shared_region_annotated(dom_id_t dom_id, region_id_t region_id, unsigned lo
         .annotation_rev = annotation_rev,
         .retval = 0
     };
+    debug_counter_tick(DEBUG_COUNTER_SWITCH_U);
     ioctl(dev_fd, IOCTL_REGION_SHARE_ANNOTATED, (unsigned long)&args);
 }
 
