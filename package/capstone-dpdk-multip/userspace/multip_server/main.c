@@ -37,17 +37,6 @@
 #include "capstone.h"
 #include "libcapstone.h"
 
-#define CAPSTONE_ANNOTATION_PERM_IN 0x0
-#define CAPSTONE_ANNOTATION_PERM_INOUT 0x1
-#define CAPSTONE_ANNOTATION_PERM_OUT 0x2
-#define CAPSTONE_ANNOTATION_PERM_EXE 0x3
-#define CAPSTONE_ANNOTATION_PERM_FULL 0x4
-
-#define CAPSTONE_ANNOTATION_REV_DEFAULT 0x0
-#define CAPSTONE_ANNOTATION_REV_BORROWED 0x1
-#define CAPSTONE_ANNOTATION_REV_SHARED 0x2
-#define CAPSTONE_ANNOTATION_REV_TRANSFERRED 0x3
-
 /*
  * When doing reads from the NIC or the client queues,
  * use this batch size
@@ -281,7 +270,9 @@ init_client_domains()
 
 	char *filename;
 	dom_id_t dom_id;
-	region_id_t region_id;
+	region_id_t metadata_region_id;
+	region_id_t send_region_id;
+	region_id_t receive_region_id;
 
 	for (i = 0; i < num_clients; ++i) {
 		filename = NULL;
@@ -294,12 +285,16 @@ init_client_domains()
 		dom_id = create_dom(filename, NULL);
 		printf("Created domain from %s with ID = %lu\n", filename, dom_id);
 
-		region_id = create_region(4096);
-		char *region_base = map_region(region_id, 4096);
-		memset(region_base, 0, 4096);
-		shared_region_annotated(dom_id, region_id, CAPSTONE_ANNOTATION_PERM_INOUT, CAPSTONE_ANNOTATION_REV_SHARED);
+		metadata_region_id = create_region(4096);
+		send_region_id = create_region(4096);
+		receive_region_id = create_region(4096);
+
+		shared_region_annotated(dom_id, metadata_region_id, CAPSTONE_ANNOTATION_PERM_INOUT, CAPSTONE_ANNOTATION_REV_SHARED);
+
 		client_domains[i].id = dom_id;
-		client_domains[i].region_base = region_base;
+		client_domains[i].metadata_region_id = metadata_region_id;
+		client_domains[i].send_region_id = send_region_id;
+		client_domains[i].receive_region_id = receive_region_id;
 
 		free(filename);
 	}

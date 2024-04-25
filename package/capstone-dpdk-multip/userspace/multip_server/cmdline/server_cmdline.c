@@ -19,6 +19,23 @@
 #include "commons.h"
 #include "args_parser.h"
 
+#define DEBUG_COUNTER_SHARED 10
+#define DEBUG_COUNTER_SHARED_TIMES 11
+#define DEBUG_COUNTER_BORROWED 12
+#define DEBUG_COUNTER_BORROWED_TIMES 13
+#define DEBUG_COUNTER_DOUBLE_TRANSFERRED 14
+#define DEBUG_COUNTER_DOUBLE_TRANSFERRED_TIMES 15
+#define DEBUG_COUNTER_BORROWED_TRANSFERRED 16
+#define DEBUG_COUNTER_BORROWED_TRANSFERRED_TIMES 17
+#define DEBUG_COUNTER_MUTABLE_BORROWED_TRANSFERRED 18
+#define DEBUG_COUNTER_MUTABLE_BORROWED_TRANSFERRED_TIMES 19
+#define debug_counter_inc(counter_no, delta) __asm__ volatile(".insn r 0x5b, 0x1, 0x45, x0, %0, %1" :: "r"(counter_no), "r"(delta))
+#define debug_shared_counter_inc(delta) debug_counter_inc(DEBUG_COUNTER_SHARED, delta); debug_counter_inc(DEBUG_COUNTER_SHARED_TIMES, 1)
+#define debug_borrowed_counter_inc(delta) debug_counter_inc(DEBUG_COUNTER_BORROWED, delta); debug_counter_inc(DEBUG_COUNTER_BORROWED_TIMES, 1)
+#define debug_double_transferred_counter_inc(delta) debug_counter_inc(DEBUG_COUNTER_DOUBLE_TRANSFERRED, delta); debug_counter_inc(DEBUG_COUNTER_DOUBLE_TRANSFERRED_TIMES, 1)
+#define debug_borrowed_transferred_counter_inc(delta) debug_counter_inc(DEBUG_COUNTER_BORROWED_TRANSFERRED, delta); debug_counter_inc(DEBUG_COUNTER_BORROWED_TRANSFERRED_TIMES, 1)
+#define debug_mutable_borrowed_transferred_counter_inc(delta) debug_counter_inc(DEBUG_COUNTER_MUTABLE_BORROWED_TRANSFERRED, delta); debug_counter_inc(DEBUG_COUNTER_MUTABLE_BORROWED_TRANSFERRED_TIMES, 1)
+
 static const char *_MSG_POOL = "MSG_POOL_SERVER";
 static volatile bool quit = false;
 
@@ -31,9 +48,15 @@ stop_server(void)
 static struct rte_mempool *message_pool;
 
 static void
-send_to_client_domain(dom_id_t __dom_id, void *__region_base, char *__msg_arr)
+send_to_client_domain(dom_id_t __dom_id, struct client_domain __client_domain, char *__msg_arr)
 {
-    char *region_base = (char *)__region_base;
+    dom_id_t dom_id = __client_domain.id;
+    region_id_t metadata_region_id = __client_domain.metadata_region_id;
+    region_id_t send_region_id = __client_domain.send_region_id;
+    
+    char *metadata_region_base = map_region(metadata_region_id, 4096);
+    char *send_region_base = map_region(send_region_id, 4096);
+    
     char *tok;
     unsigned nr_vals = 0;
     unsigned long long val;
@@ -45,29 +68,29 @@ send_to_client_domain(dom_id_t __dom_id, void *__region_base, char *__msg_arr)
     while (tok != NULL) {
         val = strtoul(tok, &ptr, 10);
         printf(" %x", val);
-        *(unsigned long long *)(region_base + 16 + 8 * nr_vals) = val;
+        *(unsigned long long *)(send_region_base + 8 * nr_vals) = val;
         nr_vals++;
 
         tok = strtok(NULL, " ");
     }
+    debug_borrowed_counter_inc(nr_vals * sizeof(unsigned long long));
     printf("\n");
 
-    asm volatile(".insn r 0x5b, 0x1, 0x45, x0, %0, %1"
-            :
-            : "r"(21), "r"(nr_vals * sizeof(long long)));
+    /*fill up metadata*/
+	*(unsigned long long *)metadata_region_base = SERVER_SEND;
+	*(unsigned long long *)(metadata_region_base + 8) = nr_vals;
+    debug_shared_counter_inc(2 * sizeof(unsigned long long));
 
-	/**
-	 * Send information to the client domain
-	*/
-	*(unsigned long long *)region_base = CLIENT_PUT;
-	*(unsigned long long *)(region_base + 8) = nr_vals;
-	unsigned long return_dom = call_dom(__dom_id);
+    shared_region_annotated(dom_id, send_region_id, CAPSTONE_ANNOTATION_PERM_IN, CAPSTONE_ANNOTATION_REV_BORROWED);
+
+	call_dom(__dom_id);
+    revoke_region(send_region_id);
 
 	/**
 	 * Wait for client to process information
 	*/
-	while (*(unsigned long long *)region_base != ACK);
-	fprintf(stdout, "Client processed %lu values.\n", return_dom);
+	while (*(unsigned long long *)metadata_region_base != ACK);
+	fprintf(stdout, "Client processed %lu values.\n", nr_vals);
 }
 
 static void cmd_send_to_domain_parsed(void *parsed_result,
@@ -77,7 +100,7 @@ static void cmd_send_to_domain_parsed(void *parsed_result,
     uint8_t i;
     dom_id_t dom_id;
     char *ptr;
-    void *region_base = NULL;
+    struct client_domain client_domain;
     uint8_t num_clients = get_num_clients();
     struct cmd_send_to_domain *res = parsed_result;
     struct client_domain *client_domains = get_client_domains();
@@ -86,17 +109,17 @@ static void cmd_send_to_domain_parsed(void *parsed_result,
 
     for (i = 0; i < num_clients; ++i) {
         if (client_domains[i].id == dom_id) {
-            region_base = client_domains[i].region_base;
+            client_domain = client_domains[i];
             break;
         }
     }
 
-    if (region_base == NULL) {
+    if (i >= num_clients) {
         fprintf(stderr, "Could not find the domain id %lu.\n", dom_id);
         return;
     }
 
-    send_to_client_domain(dom_id, region_base, res->m_msg_arr);
+    send_to_client_domain(dom_id, client_domain, res->m_msg_arr);
 }
 
 cmdline_parse_token_string_t cmd_send_to_domain_action =
@@ -120,31 +143,38 @@ cmdline_parse_inst_t cmd_send_to_domain = {
 
 
 static void
-receive_from_client_domain(dom_id_t __dom_id, void *__region_base)
+receive_from_client_domain(dom_id_t __dom_id, struct client_domain __client_domain)
 {
     unsigned nr_recv_vals = 0;
-    char *region_base = (char *)__region_base;
 
-	/**
-	 * Send information to the client domain
-	*/
-	*(unsigned long long *)region_base = SERVER_GET;
-	unsigned long long return_dom = call_dom(__dom_id);
+    region_id_t metadata_region_id = __client_domain.metadata_region_id;
+    region_id_t receive_region_id = __client_domain.receive_region_id;
+    
+    char *metadata_region_base = map_region(metadata_region_id, 4096);
+    char *receive_region_base = map_region(receive_region_id, 4096);
+
+	*(unsigned long long *)metadata_region_base = SERVER_RECEIVE;
+    debug_shared_counter_inc(sizeof(unsigned long long));
+
+    /*region sharing*/
+    shared_region_annotated(__dom_id, receive_region_id, CAPSTONE_ANNOTATION_PERM_OUT, CAPSTONE_ANNOTATION_REV_BORROWED);
+    
+    call_dom(__dom_id);
+
+    revoke_region(receive_region_id);
 
 	/**
 	 * Wait for client to process information
 	*/
-	while (*(unsigned long long *)region_base != ACK);
+	while (*(unsigned long long *)metadata_region_base != ACK);
 
-    nr_recv_vals = *(unsigned long long *)(region_base + 8);
-    asm volatile(".insn r 0x5b, 0x1, 0x45, x0, %0, %1"
-            :
-            : "r"(22), "r"(nr_recv_vals * sizeof(long long)));
+    nr_recv_vals = *(unsigned long long *)(metadata_region_base + 8);
 
     fprintf(stdout, "Number of elements about to be consumed: %u.\n", nr_recv_vals);
     fprintf(stdout, "Received from client domain %u:", __dom_id);
+
 	for (unsigned i = 0; i < nr_recv_vals; ++i) {
-        fprintf(stdout, " %u", *(unsigned long long *)(region_base + 16 + 8 * i));
+        fprintf(stdout, " %u", *(unsigned long long *)(receive_region_base + 8 * i));
 	}
 
     fprintf(stdout, "\n");
@@ -159,7 +189,7 @@ static void cmd_receive_from_domain_parsed(void *parsed_result,
     uint8_t i;
     dom_id_t dom_id;
     char *ptr;
-    void *region_base = NULL;
+    struct client_domain client_domain;
     uint8_t num_clients = get_num_clients();
     struct cmd_receive_from_domain *res = parsed_result;
     struct client_domain *client_domains = get_client_domains();
@@ -168,17 +198,17 @@ static void cmd_receive_from_domain_parsed(void *parsed_result,
 
     for (i = 0; i < num_clients; ++i) {
         if (client_domains[i].id == dom_id) {
-            region_base = client_domains[i].region_base;
+            client_domain = client_domains[i];
             break;
         }
     }
 
-    if (region_base == NULL) {
+    if (i >= num_clients) {
         fprintf(stderr, "Could not find the domain id %lu.\n", dom_id);
         return;
     }
 
-    receive_from_client_domain(dom_id, region_base);
+    receive_from_client_domain(dom_id, client_domain);
 }
 
 cmdline_parse_token_string_t cmd_receive_from_domain_action =
