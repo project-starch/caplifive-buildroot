@@ -65,6 +65,9 @@ void dpdk_client(void)
 
         shared_region[0] = ACK;
         debug_shared_counter_inc(SIZE_OF_ULL);
+
+        __linear void* lin = send_region_ptr;
+        __delin(lin);
     }
     if (op == SERVER_RECEIVE) {
         void* receive_region = regions[1];
@@ -80,6 +83,9 @@ void dpdk_client(void)
         shared_region[0] = ACK;
         shared_region[1] = PROD_NUMBER;
         debug_shared_counter_inc(2 * SIZE_OF_ULL);
+
+        __linear void* lin = receive_region_ptr;
+        __delin(lin);
     }
 }
 

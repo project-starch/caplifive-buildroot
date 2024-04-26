@@ -29,6 +29,7 @@ static DECLARE_FAULT_ATTR(null_init_hctx_attr);
 #define DEBUG_COUNTER_BORROWED 12
 #define DEBUG_COUNTER_BORROWED_TIMES 13
 #define debug_counter_inc(counter_no, delta) __asm__ volatile(".insn r 0x5b, 0x1, 0x45, x0, %0, %1" :: "r"(counter_no), "r"(delta))
+#define debug_counter_tick(counter_no) debug_counter_inc((counter_no), 1)
 #define debug_shared_counter_inc(delta) debug_counter_inc(DEBUG_COUNTER_SHARED, delta); debug_counter_inc(DEBUG_COUNTER_SHARED_TIMES, 1)
 #define debug_borrowed_counter_inc(delta) debug_counter_inc(DEBUG_COUNTER_BORROWED, delta); debug_counter_inc(DEBUG_COUNTER_BORROWED_TIMES, 1)
 
