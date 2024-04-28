@@ -37,6 +37,8 @@
 #include "capstone.h"
 #include "libcapstone.h"
 
+#define __ENABLE_BENCHMARKING__
+
 /*
  * When doing reads from the NIC or the client queues,
  * use this batch size
@@ -355,8 +357,11 @@ main(int __argc, char *__argv[])
 	// 	rte_eal_remote_launch(fs[i++], NULL, lcore_id);
 	// }
 
+	#ifdef __ENABLE_BENCHMARKING__
+		asm volatile (".insn r 0x5b, 0x1, 0x47, x0, x0, x0");
+	#endif
+
 	start_cmdline();
-	asm volatile (".insn r 0x5b, 0x1, 0x46, x0, x0, x0");
 
 	rte_eal_mp_wait_lcore();
 

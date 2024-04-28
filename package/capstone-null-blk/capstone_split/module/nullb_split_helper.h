@@ -2,6 +2,7 @@
 #define __NULLB_SPLIT_HELPER_H
 
 #define __NULLB_SPLIT_ENABLED__
+// #define __CAPSTONE_DEBUG_FLAG__
 
 /*dpi*/
 #define NULLBS_NULL_VALIDATE_CONF 0x0

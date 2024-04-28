@@ -23,7 +23,6 @@ interact {
 
 interact {
     -o "# " {
-        send "/clear-counters\r"
         send "/dpdk-multip/dpdk-multip_server -l 0 -n 4 -- -p 3 -n 2\r"
         return
     }

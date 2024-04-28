@@ -19,6 +19,8 @@
 #include "commons.h"
 #include "args_parser.h"
 
+// #define __CAPSTONE_DEBUG_FLAG__
+
 #define DEBUG_COUNTER_SHARED 10
 #define DEBUG_COUNTER_SHARED_TIMES 11
 #define DEBUG_COUNTER_BORROWED 12

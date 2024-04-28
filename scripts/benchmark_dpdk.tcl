@@ -23,8 +23,7 @@ interact {
 
 interact {
     -o "# " {
-        send "/clear-counters\r"
-        send "/dpdk-multip/dpdk-multip_server -l 0 -n 4 -- -p 3 -n 2 < /benchmark/dpdk_multip_commands\r"
+        send "/dpdk-multip/dpdk-multip_server -l 0 -n 4 -- -p 3 -n 2 < /benchmark/dpdk_multip_commands >/dev/null 2>&1\r"
         send "/print-counters\r"
         send "poweroff -f\r"
     }

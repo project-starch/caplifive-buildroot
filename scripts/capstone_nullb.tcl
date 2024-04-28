@@ -21,7 +21,6 @@ interact {
 
 interact {
     -o "# " {
-        send "/clear-counters\r"
         send "/null_blk.user\r"
         send "insmod /nullb/capstone_split/null_blk.ko\r"
         send "echo \"hello world\" | dd of=/dev/nullb0 bs=1024 count=10\r"

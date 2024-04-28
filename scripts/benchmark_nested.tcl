@@ -20,7 +20,6 @@ interact {
 
 interact {
     -o "# " {
-        send "/clear-counters\r"
         send "/miniweb_frontend.user &\r"
         return
     }
@@ -28,13 +27,14 @@ interact {
 
 interact {
     -o "Waiting for incoming connections..." {
-        send "/benchmark/nested-enclave\r"
+        send "/clear-counters\r"
         return
     }
 }
 
 interact {
     -o "# " {
+        send "/benchmark/nested-enclave >/dev/null 2>&1\r"
         send "/print-counters\r"
         send "poweroff -f\r"
     }
