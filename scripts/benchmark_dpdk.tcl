@@ -27,6 +27,5 @@ interact {
         send "/dpdk-multip/dpdk-multip_server -l 0 -n 4 -- -p 3 -n 2 < /benchmark/dpdk_multip_commands\r"
         send "/print-counters\r"
         send "poweroff -f\r"
-        return
     }
 }

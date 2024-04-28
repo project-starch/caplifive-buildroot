@@ -2,4 +2,3 @@ build/*
 !build/local.mk
 *.bk
 .vscode/
-benchmark-results/
