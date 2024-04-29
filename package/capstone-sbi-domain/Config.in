@@ -2,6 +2,3 @@ config BR2_PACKAGE_CAPSTONE_SBI_DOMAIN
     bool "capstone-sbi-domain"
     help
         Captainer domain that includes an SBI-providing C mode.
-
-        https://capstone.kisp-lab.org/
-
