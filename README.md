@@ -230,7 +230,7 @@ make build CAPSTONE_CC_PATH=<path-to-capstone-c-compiler-directory> A=capstone-n
 
 ### Quick Start
 
-> TL;DR: Run `CAPSTONE_QEMU_PATH=<path-to-capstone-qemu> expect capstone_nested_enclave.tcl` in `scripts` to see the results.
+> TL;DR: Run `CAPSTONE_QEMU_PATH=<path-to-capstone-qemu> expect capstone_nested.tcl` in `scripts` to see the results.
 
 Install the `capstone` kernel module:
 
