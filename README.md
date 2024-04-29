@@ -57,10 +57,10 @@ Pass the following arguments to [Capstone-QEMU](https://github.com/project-starc
 
 ```
 -M virt-capstone -m 8G -nographic
--bios ../captainer-buildroot/build/images/fw_jump.elf
--kernel ../captainer-buildroot/build/images/Image
+-bios <path>/build/images/fw_jump.elf
+-kernel <path>/build/images/Image
 -append 'root=/dev/vda ro'
--drive file=../captainer-buildroot/build/images/rootfs.ext2,format=raw,id=hd0
+-drive file=<path>/build/images/rootfs.ext2,format=raw,id=hd0
 -netdev user,id=net0,hostfwd=tcp::60022-:22
 -device virtio-blk-device,drive=hd0
 -chardev stdio,mux=on,id=ch0,signal=on
