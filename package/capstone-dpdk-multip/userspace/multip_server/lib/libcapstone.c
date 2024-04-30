@@ -382,6 +382,7 @@ void shared_region_annotated(dom_id_t dom_id, region_id_t region_id, unsigned lo
         .annotation_rev = annotation_rev,
         .retval = 0
     };
+    debug_counter_tick(DEBUG_COUNTER_SWITCH_U);
     ioctl(dev_fd, IOCTL_REGION_SHARE_ANNOTATED, (unsigned long)&args);
 }
 
@@ -391,6 +392,7 @@ void share_region(dom_id_t dom_id, region_id_t region_id) {
         .region_id = region_id,
         .retval = 0
     };
+    debug_counter_tick(DEBUG_COUNTER_SWITCH_U);
     ioctl(dev_fd, IOCTL_REGION_SHARE, (unsigned long)&args);
 }
 

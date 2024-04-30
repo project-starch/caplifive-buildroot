@@ -1,13 +1,13 @@
 #!/bin/bash
 
-total_num=100
+total_num=1000
 
-count_index_html=20
-count_null_html=10
-count_register_html=20
-count_register_succ_a=20
-count_register_succ_b=20
-count_register_fail=10
+count_index_html=250
+count_null_html=50
+count_register_html=150
+count_register_succ_a=250
+count_register_succ_b=250
+count_register_fail=50
 
 random() {
   echo $(($RANDOM % $1))
@@ -44,6 +44,11 @@ for i in $(seq 1 $count_register_fail); do
   random_num=$(random $total_num)
   commands[$random_num]="busybox wget --post-data 'name=Alex&email=alex@email.com' -O - http://localhost:8888/cgi/cgi_register_fail.dom"
 done
+
+echo "#!/bin/sh"
+echo ""
+echo "set -x"
+echo ""
 
 for command in "${commands[@]}"; do
   if [[ -n $command ]]; then

@@ -14,17 +14,16 @@ interact {
 interact {
     -o "# " {
         send "insmod /capstone.ko\r"
-        send "modprobe configfs\r"
+        send "mkdir -p /mnt/huge\r"
+        send "mount -t hugetlbfs nodev /mnt/huge\r"
+        send "echo 2048 > /sys/kernel/mm/hugepages/hugepages-2048kB/nr_hugepages\r"
         return
     }
 }
 
 interact {
     -o "# " {
-        send "/null_blk.user\r"
-        send "insmod /nullb/capstone_split/null_blk.ko\r"
-        send "/clear-counters\r"
-        send "/benchmark/null-blk >/dev/null 2>&1\r"
+        send "/dpdk-multip/dpdk-multip_server -l 0 -n 4 -- -p 3 -n 2 < /benchmark/dpdk_multip_commands >/dev/null 2>&1\r"
         send "/print-counters\r"
         send "poweroff -f\r"
     }

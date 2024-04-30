@@ -2,6 +2,4 @@ config BR2_PACKAGE_CAPSTONE_DPDK_MULTIP
     bool "capstone_dpdk_multip"
     select BR2_TOOLCHAIN_HEADERS_AT_LEAST_6_1
     help
-        DPDK multi-process sample application implemented with Captainer.
-
-        https://capstone.kisp-lab.org/
+        DPDK multi-process sample application case study.

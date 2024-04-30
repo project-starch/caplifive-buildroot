@@ -23,11 +23,13 @@ static DECLARE_FAULT_ATTR(null_requeue_attr);
 static DECLARE_FAULT_ATTR(null_init_hctx_attr);
 #endif
 
+#define DEBUG_COUNTER_SWITCH_S  1
 #define DEBUG_COUNTER_SHARED 10
 #define DEBUG_COUNTER_SHARED_TIMES 11
 #define DEBUG_COUNTER_BORROWED 12
 #define DEBUG_COUNTER_BORROWED_TIMES 13
 #define debug_counter_inc(counter_no, delta) __asm__ volatile(".insn r 0x5b, 0x1, 0x45, x0, %0, %1" :: "r"(counter_no), "r"(delta))
+#define debug_counter_tick(counter_no) debug_counter_inc((counter_no), 1)
 #define debug_shared_counter_inc(delta) debug_counter_inc(DEBUG_COUNTER_SHARED, delta); debug_counter_inc(DEBUG_COUNTER_SHARED_TIMES, 1)
 #define debug_borrowed_counter_inc(delta) debug_counter_inc(DEBUG_COUNTER_BORROWED, delta); debug_counter_inc(DEBUG_COUNTER_BORROWED_TIMES, 1)
 
@@ -794,7 +796,9 @@ static void end_cmd(struct nullb_cmd *cmd)
 		return;
 	case NULL_Q_BIO:
 	#ifdef __NULLB_SPLIT_ENABLED__
-		printk(KERN_INFO "enter domain: end_cmd_bio\n");
+		#ifdef __CAPSTONE_DEBUG_FLAG__
+			printk(KERN_INFO "enter domain: end_cmd_bio\n");
+		#endif
 
 		unsigned long function_code = NULLBS_END_CMD_BIO;
 		memcpy(metadata_region_base, &function_code, sizeof(function_code));
@@ -804,11 +808,14 @@ static void end_cmd(struct nullb_cmd *cmd)
 
 		sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_SHARE_ANNOTATED,
 			DOMAIN_NULLB_SPLIT, ro_region, CAPSTONE_ANNOTATION_PERM_IN, CAPSTONE_ANNOTATION_REV_BORROWED, 0, 0);
+		debug_counter_tick(DEBUG_COUNTER_SWITCH_S);
 		sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_SHARE_ANNOTATED,
 			DOMAIN_NULLB_SPLIT, wo_region, CAPSTONE_ANNOTATION_PERM_OUT, CAPSTONE_ANNOTATION_REV_BORROWED, 0, 0);
+		debug_counter_tick(DEBUG_COUNTER_SWITCH_S);
 		
 		sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_DOM_CALL,
 				DOMAIN_NULLB_SPLIT, 0, 0, 0, 0, 0);
+		debug_counter_tick(DEBUG_COUNTER_SWITCH_S);
 
 		sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_REVOKE,
 				ro_region, 0, 0, 0, 0, 0);
@@ -816,7 +823,10 @@ static void end_cmd(struct nullb_cmd *cmd)
 				wo_region, 0, 0, 0, 0, 0);
 
 		memcpy(&(cmd->bio->bi_status), wo_region_base, sizeof(cmd->bio->bi_status));
-		printk(KERN_INFO "exit domain: end_cmd_bio\n");
+
+		#ifdef __CAPSTONE_DEBUG_FLAG__
+			printk(KERN_INFO "exit domain: end_cmd_bio\n");
+		#endif
 	#else
 		cmd->bio->bi_status = cmd->error;
 	#endif
@@ -1314,7 +1324,9 @@ static int null_handle_bio(struct nullb_cmd *cmd)
 	bio_for_each_segment(bvec, bio, iter) {
 		len = bvec.bv_len;
 	#ifdef __NULLB_SPLIT_ENABLED__
-		printk(KERN_INFO "enter domain: bio_op, null_handle_bio\n");
+		#ifdef __CAPSTONE_DEBUG_FLAG__
+			printk(KERN_INFO "enter domain: bio_op, null_handle_bio\n");
+		#endif
 
 		unsigned long function_code = NULLBS_BIO_OP;
 		memcpy(metadata_region_base, &function_code, sizeof(function_code));
@@ -1324,11 +1336,14 @@ static int null_handle_bio(struct nullb_cmd *cmd)
 
 		sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_SHARE_ANNOTATED,
 			DOMAIN_NULLB_SPLIT, ro_region, CAPSTONE_ANNOTATION_PERM_IN, CAPSTONE_ANNOTATION_REV_BORROWED, 0, 0);
+		debug_counter_tick(DEBUG_COUNTER_SWITCH_S);
 		sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_SHARE_ANNOTATED,
 			DOMAIN_NULLB_SPLIT, wo_region, CAPSTONE_ANNOTATION_PERM_OUT, CAPSTONE_ANNOTATION_REV_BORROWED, 0, 0);
-		
+		debug_counter_tick(DEBUG_COUNTER_SWITCH_S);
+
 		sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_DOM_CALL,
 				DOMAIN_NULLB_SPLIT, 0, 0, 0, 0, 0);
+		debug_counter_tick(DEBUG_COUNTER_SWITCH_S);
 
 		sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_REVOKE,
 				ro_region, 0, 0, 0, 0, 0);
@@ -1338,7 +1353,9 @@ static int null_handle_bio(struct nullb_cmd *cmd)
 		enum req_op bio_op_rv;
 		memcpy(&bio_op_rv, wo_region_base, sizeof(bio_op_rv));
 		
-		printk(KERN_INFO "exit domain: bio_op\n");
+		#ifdef __CAPSTONE_DEBUG_FLAG__
+			printk(KERN_INFO "exit domain: bio_op\n");
+		#endif
 	#else
 		enum req_op bio_op_rv = bio_op(bio);
 	#endif
@@ -1434,7 +1451,9 @@ static void nullb_zero_read_cmd_buffer(struct nullb_cmd *cmd)
 		return;
 
 #ifdef __NULLB_SPLIT_ENABLED__
-	printk(KERN_INFO "enter domain: bio_op, nullb_zero_read_cmd_buffer\n");
+	#ifdef __CAPSTONE_DEBUG_FLAG__
+		printk(KERN_INFO "enter domain: bio_op, nullb_zero_read_cmd_buffer\n");
+	#endif
 
 	unsigned long function_code = NULLBS_BIO_OP;
 	memcpy(metadata_region_base, &function_code, sizeof(function_code));
@@ -1444,11 +1463,14 @@ static void nullb_zero_read_cmd_buffer(struct nullb_cmd *cmd)
 
 	sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_SHARE_ANNOTATED,
 		DOMAIN_NULLB_SPLIT, ro_region, CAPSTONE_ANNOTATION_PERM_IN, CAPSTONE_ANNOTATION_REV_BORROWED, 0, 0);
+	debug_counter_tick(DEBUG_COUNTER_SWITCH_S);
 	sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_SHARE_ANNOTATED,
 		DOMAIN_NULLB_SPLIT, wo_region, CAPSTONE_ANNOTATION_PERM_OUT, CAPSTONE_ANNOTATION_REV_BORROWED, 0, 0);
+	debug_counter_tick(DEBUG_COUNTER_SWITCH_S);
 	
 	sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_DOM_CALL,
 			DOMAIN_NULLB_SPLIT, 0, 0, 0, 0, 0);
+	debug_counter_tick(DEBUG_COUNTER_SWITCH_S);
 
 	sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_REVOKE,
 			ro_region, 0, 0, 0, 0, 0);
@@ -1458,7 +1480,9 @@ static void nullb_zero_read_cmd_buffer(struct nullb_cmd *cmd)
 	enum req_op bio_op_rv;
 	memcpy(&bio_op_rv, wo_region_base, sizeof(bio_op_rv));
 
-	printk(KERN_INFO "exit domain: bio_op\n");
+	#ifdef __CAPSTONE_DEBUG_FLAG__
+		printk(KERN_INFO "exit domain: bio_op\n");
+	#endif
 #else
 	enum req_op bio_op_rv = bio_op(cmd->bio);
 #endif
@@ -1600,7 +1624,9 @@ static void null_submit_bio(struct bio *bio)
 	sector_t nr_sectors = bio_sectors(bio);
 	struct nullb *nullb = bio->bi_bdev->bd_disk->private_data;
 #ifdef __NULLB_SPLIT_ENABLED__
-	printk(KERN_INFO "enter domain: nullb_to_queue\n");
+	#ifdef __CAPSTONE_DEBUG_FLAG__
+		printk(KERN_INFO "enter domain: nullb_to_queue\n");
+	#endif
 
 	unsigned long function_code = NULLBS_NULLB_TO_QUEUE;
 	memcpy(metadata_region_base, &function_code, sizeof(function_code));
@@ -1610,11 +1636,14 @@ static void null_submit_bio(struct bio *bio)
 
 	sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_SHARE_ANNOTATED,
 		DOMAIN_NULLB_SPLIT, ro_region, CAPSTONE_ANNOTATION_PERM_IN, CAPSTONE_ANNOTATION_REV_BORROWED, 0, 0);
+	debug_counter_tick(DEBUG_COUNTER_SWITCH_S);
 	sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_SHARE_ANNOTATED,
 		DOMAIN_NULLB_SPLIT, wo_region, CAPSTONE_ANNOTATION_PERM_OUT, CAPSTONE_ANNOTATION_REV_BORROWED, 0, 0);
+	debug_counter_tick(DEBUG_COUNTER_SWITCH_S);
 	
 	sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_DOM_CALL,
 			DOMAIN_NULLB_SPLIT, 0, 0, 0, 0, 0);
+	debug_counter_tick(DEBUG_COUNTER_SWITCH_S);
 
 	sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_REVOKE,
 			ro_region, 0, 0, 0, 0, 0);
@@ -1624,13 +1653,17 @@ static void null_submit_bio(struct bio *bio)
 	struct nullb_queue *nq;
 	memcpy(&nq, wo_region_base, sizeof(struct nullb_queue *));
 
-	printk(KERN_INFO "exit domain: nullb_to_queue\n");
+	#ifdef __CAPSTONE_DEBUG_FLAG__
+		printk(KERN_INFO "exit domain: nullb_to_queue\n");
+	#endif
 #else
 	struct nullb_queue *nq = nullb_to_queue(nullb);
 #endif
 
 #ifdef __NULLB_SPLIT_ENABLED__
-	printk(KERN_INFO "enter domain: bio_op, null_submit_bio\n");
+	#ifdef __CAPSTONE_DEBUG_FLAG__
+		printk(KERN_INFO "enter domain: bio_op, null_submit_bio\n");
+	#endif
 
 	function_code = NULLBS_BIO_OP;
 	memcpy(metadata_region_base, &function_code, sizeof(function_code));
@@ -1640,11 +1673,14 @@ static void null_submit_bio(struct bio *bio)
 
 	sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_SHARE_ANNOTATED,
 		DOMAIN_NULLB_SPLIT, ro_region, CAPSTONE_ANNOTATION_PERM_IN, CAPSTONE_ANNOTATION_REV_BORROWED, 0, 0);
+	debug_counter_tick(DEBUG_COUNTER_SWITCH_S);
 	sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_SHARE_ANNOTATED,
 		DOMAIN_NULLB_SPLIT, wo_region, CAPSTONE_ANNOTATION_PERM_OUT, CAPSTONE_ANNOTATION_REV_BORROWED, 0, 0);
+	debug_counter_tick(DEBUG_COUNTER_SWITCH_S);
 	
 	sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_DOM_CALL,
 			DOMAIN_NULLB_SPLIT, 0, 0, 0, 0, 0);
+	debug_counter_tick(DEBUG_COUNTER_SWITCH_S);
 
 	sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_REVOKE,
 			ro_region, 0, 0, 0, 0, 0);
@@ -1654,7 +1690,9 @@ static void null_submit_bio(struct bio *bio)
 	enum req_op bio_op_rv;
 	memcpy(&bio_op_rv, wo_region_base, sizeof(bio_op_rv));
 
-	printk(KERN_INFO "exit domain: bio_op\n");
+	#ifdef __CAPSTONE_DEBUG_FLAG__
+		printk(KERN_INFO "exit domain: bio_op\n");
+	#endif
 #else
 	enum req_op bio_op_rv = bio_op(bio);
 #endif
@@ -2170,7 +2208,9 @@ static int null_add_dev(struct nullb_device *dev)
 	int rv; // return value
 
 #ifdef __NULLB_SPLIT_ENABLED__
-	printk(KERN_INFO "enter domain: null_validate_conf\n");
+	#ifdef __CAPSTONE_DEBUG_FLAG__
+		printk(KERN_INFO "enter domain: null_validate_conf\n");
+	#endif	
 
 	unsigned long function_code = NULLBS_NULL_VALIDATE_CONF;
 	memcpy(metadata_region_base, &function_code, sizeof(function_code));
@@ -2180,11 +2220,14 @@ static int null_add_dev(struct nullb_device *dev)
 
 	sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_SHARE_ANNOTATED,
 		DOMAIN_NULLB_SPLIT, nullb_dev_region, CAPSTONE_ANNOTATION_PERM_INOUT, CAPSTONE_ANNOTATION_REV_BORROWED, 0, 0);
+	debug_counter_tick(DEBUG_COUNTER_SWITCH_S);
 	sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_SHARE_ANNOTATED,
 		DOMAIN_NULLB_SPLIT, wo_region, CAPSTONE_ANNOTATION_PERM_OUT, CAPSTONE_ANNOTATION_REV_BORROWED, 0, 0);
+	debug_counter_tick(DEBUG_COUNTER_SWITCH_S);
 
 	sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_DOM_CALL,
 			DOMAIN_NULLB_SPLIT, 0, 0, 0, 0, 0);
+	debug_counter_tick(DEBUG_COUNTER_SWITCH_S);
 
 	sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_REVOKE,
 			nullb_dev_region, 0, 0, 0, 0, 0);
@@ -2194,7 +2237,9 @@ static int null_add_dev(struct nullb_device *dev)
 	memcpy(&rv, wo_region_base, sizeof(int));
 	memcpy(dev, nullb_dev_region_base, sizeof(struct nullb_device));
 
-	printk(KERN_INFO "exit domain: null_validate_conf\n");
+	#ifdef __CAPSTONE_DEBUG_FLAG__
+		printk(KERN_INFO "exit domain: null_validate_conf\n");
+	#endif
 #else
 	rv = null_validate_conf(dev);
 #endif
@@ -2405,25 +2450,42 @@ static int __init null_init(void)
 
 	/* initialize shared region pointers*/
 	metadata_region = create_region(4096);
-    printk("Shared region created with ID %lu\n", metadata_region);
+	#ifdef __CAPSTONE_DEBUG_FLAG__
+		printk("Shared region created with ID %lu\n", metadata_region);
+	#endif
     ro_region = create_region(4096);
-    printk("Shared region created with ID %lu\n", ro_region);
+    #ifdef __CAPSTONE_DEBUG_FLAG__
+		printk("Shared region created with ID %lu\n", ro_region);
+	#endif
     wo_region = create_region(4096);
-    printk("Shared region created with ID %lu\n", wo_region);
+    #ifdef __CAPSTONE_DEBUG_FLAG__
+		printk("Shared region created with ID %lu\n", wo_region);
+	#endif
     nullb_dev_region = create_region(4096);
-    printk("Shared region created with ID %lu\n", nullb_dev_region);
+    #ifdef __CAPSTONE_DEBUG_FLAG__
+		printk("Shared region created with ID %lu\n", nullb_dev_region);
+	#endif
 
 	metadata_region_base = region_id_to_base(metadata_region);
-	printk("metadata_region_base = %p\n", metadata_region_base);
+	#ifdef __CAPSTONE_DEBUG_FLAG__
+		printk("metadata_region_base = %p\n", metadata_region_base);
+	#endif
 	ro_region_base = region_id_to_base(ro_region);
-	printk("ro_region_base = %p\n", ro_region_base);
+	#ifdef __CAPSTONE_DEBUG_FLAG__
+		printk("ro_region_base = %p\n", ro_region_base);
+	#endif
 	wo_region_base = region_id_to_base(wo_region);
-	printk("wo_region_base = %p\n", wo_region_base);
+	#ifdef __CAPSTONE_DEBUG_FLAG__
+		printk("wo_region_base = %p\n", wo_region_base);
+	#endif
 	nullb_dev_region_base = region_id_to_base(nullb_dev_region);
-	printk("nullb_dev_region_base = %p\n", nullb_dev_region_base);
+	#ifdef __CAPSTONE_DEBUG_FLAG__
+		printk("nullb_dev_region_base = %p\n", nullb_dev_region_base);
+	#endif
 
 	sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_SHARE_ANNOTATED,
 		DOMAIN_NULLB_SPLIT, metadata_region, CAPSTONE_ANNOTATION_PERM_INOUT, CAPSTONE_ANNOTATION_REV_SHARED, 0, 0);
+	debug_counter_tick(DEBUG_COUNTER_SWITCH_S);
 
 	/*check module paramters*/
 	if (g_bs > PAGE_SIZE) {

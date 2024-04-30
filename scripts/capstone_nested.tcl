@@ -14,6 +14,12 @@ interact {
 interact {
     -o "# " {
         send "insmod /capstone.ko\r"
+        return
+    }
+}
+
+interact {
+    -o "# " {
         send "/miniweb_frontend.user &\r"
         return
     }

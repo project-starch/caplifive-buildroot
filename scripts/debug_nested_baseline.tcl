@@ -19,7 +19,6 @@ interact {
         send "busybox wget -O - http://localhost:8888/index.html\r"
         send "busybox wget -O - http://localhost:8888/null.html\r"
         send "busybox wget --post-data \"name=Alex&email=alex@email.com\" -O - http://localhost:8888/cgi/register\r"
-        send "/print-counters\r"
         send "poweroff -f\r"
     }
 }

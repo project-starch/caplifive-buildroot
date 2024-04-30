@@ -3,18 +3,23 @@
 
 #include "capstone.h"
 
-/**
- * Values used by the custom communication protocol
- * The server and each client domain should use the exact same values for expected protocol communication
-*/
-#define SERVER_GET 0xacef  /* Signals the server that a client produced something that can be consumed */
-#define CLIENT_PUT 0xcadd  /* signals the client that the server placed some information in the shared region */
-#define ACK 0xaccc
-/* ################################################ */
+#define CAPSTONE_ANNOTATION_PERM_IN 0x0
+#define CAPSTONE_ANNOTATION_PERM_INOUT 0x1
+#define CAPSTONE_ANNOTATION_PERM_OUT 0x2
+#define CAPSTONE_ANNOTATION_PERM_EXE 0x3
+#define CAPSTONE_ANNOTATION_PERM_FULL 0x4
+
+#define CAPSTONE_ANNOTATION_REV_DEFAULT 0x0
+#define CAPSTONE_ANNOTATION_REV_BORROWED 0x1
+#define CAPSTONE_ANNOTATION_REV_SHARED 0x2
+#define CAPSTONE_ANNOTATION_REV_TRANSFERRED 0x3
+
+#define ACK 0x0
+#define SERVER_SEND 0x1
+#define SERVER_RECEIVE 0x2
 
 int capstone_init();
 int capstone_cleanup();
-
 
 dom_id_t create_dom(const char *c_path, const char *s_path);
 dom_id_t create_dom_ko(const char *c_path, const char *s_path);
@@ -29,4 +34,3 @@ int region_count(void);
 void schedule_dom(dom_id_t dom_id);
 
 #endif
-

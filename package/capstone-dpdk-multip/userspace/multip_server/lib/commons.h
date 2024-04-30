@@ -72,7 +72,9 @@ struct ipc_message {
 
 struct client_domain {
 	dom_id_t id;
-	void *region_base;
+	region_id_t metadata_region_id;
+	region_id_t send_region_id;
+	region_id_t receive_region_id;
 };
 
 struct client_domain *get_client_domains(void);

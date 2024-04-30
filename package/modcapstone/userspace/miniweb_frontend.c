@@ -10,6 +10,8 @@
 #include <assert.h>
 #include "lib/libcapstone.h"
 
+// #define __CAPSTONE_DEBUG_FLAG__
+
 #define DEBUG_COUNTER_SHARED 10
 #define DEBUG_COUNTER_SHARED_TIMES 11
 #define DEBUG_COUNTER_BORROWED 12
@@ -53,7 +55,12 @@
 #define THREAD_SIZE 1 // 1 thread for now
 #define CONNECTION_NUM 3
 #define CGI_ELF_REGION_SIZE (4096 * 64)
-#define print_nobuf(...) do { printf(__VA_ARGS__); fflush(stdout); } while(0)
+
+#ifdef __CAPSTONE_DEBUG_FLAG__
+    #define print_nobuf(...) do { printf(__VA_ARGS__); fflush(stdout); } while(0)
+#else
+    #define print_nobuf(...) do {;} while(0)
+#endif
 
 #define HTML_FD_UNDEFINED 0
 #define HTML_FD_404RESPONSE 1
@@ -190,7 +197,8 @@ void* workerThread(void *arg) {
         char error_path[] = "/nested/capstone_split/404Response.txt";
         int error_fd = open(error_path, O_RDONLY);
         if (error_fd == -1) {
-            print_nobuf("Couldn't open 404Response.txt\n");
+            printf("Couldn't open 404Response.txt\n");
+            fflush(stdout);
         }
         else {
             ptr = html_fd_region_base;
@@ -243,7 +251,8 @@ void* workerThread(void *arg) {
     }
 
     if (html_fd_status == HTML_FD_UNDEFINED) {
-        print_nobuf("Server internal error: HTML FD UNDEFINED!\n");
+        printf("Server internal error: HTML FD UNDEFINED!\n");
+        fflush(stdout);
     }
   } // end while
   return NULL;
@@ -289,7 +298,8 @@ int main() {
     char cgi_success_path[] = "/nested/capstone_split/cgi/cgi_register_success.dom";
     int cgi_success_fd = open(cgi_success_path, O_RDONLY);
     if (cgi_success_fd == -1) {
-        print_nobuf("Couldn't open cgi_register_success.dom\n");
+        printf("Couldn't open cgi_register_success.dom\n");
+        fflush(stdout);
     }
     else {
         char* ptr = cgi_success_region_base;
@@ -304,7 +314,8 @@ int main() {
     char cgi_fail_path[] = "/nested/capstone_split/cgi/cgi_register_fail.dom";
     int cgi_fail_fd = open(cgi_fail_path, O_RDONLY);
     if (cgi_fail_fd == -1) {
-        print_nobuf("Couldn't open cgi_register_fail.dom\n");
+        printf("Couldn't open cgi_register_fail.dom\n");
+        fflush(stdout);
     }
     else {
         char* ptr = cgi_fail_region_base;
@@ -329,10 +340,10 @@ int main() {
 
     int server_socket = socket(AF_INET, SOCK_STREAM, 0);
     if (server_socket == -1) {
-        print_nobuf("Could not create socket.\n");
+        printf("Could not create socket.\n");
         return 1;
     }
-    print_nobuf("Socket created.\n");
+    printf("Socket created.\n");
 
     int on = 1;
     setsockopt(server_socket, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on));
@@ -343,13 +354,14 @@ int main() {
     server.sin_port = htons(8888);
 
     if(bind(server_socket, (struct sockaddr *)&server, sizeof(server)) < 0) {
-        print_nobuf("Bind failed.\n");
+        printf("Bind failed.\n");
         return 1;
     }
-    print_nobuf("Bind done.\n");
+    printf("Bind done.\n");
 
     listen(server_socket, CONNECTION_NUM);
-    print_nobuf("Waiting for incoming connections...\n");
+    printf("Waiting for incoming connections...\n");
+    fflush(stdout);
 
     while(1) {
         struct sockaddr_in client;
