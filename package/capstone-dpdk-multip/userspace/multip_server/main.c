@@ -128,15 +128,11 @@ process_packets(uint32_t port_num __rte_unused,
 			fprintf(stdout, "Received from a client %s\n", (char *)data);
 		}
 		free(buf);
-		// enqueue_rx_packet(client, pkts[i]);
 
 		if (++client == num_clients)
 			client = 0;
 	}
 	fclose(dump_file);
-
-	// for (i = 0; i < num_clients; i++)
-	// 	flush_rx_queue(i);
 }
 
 /*
@@ -155,8 +151,6 @@ do_packet_forwarding(__rte_unused void *arg)
 
 		/* read a port */
 		rx_count = rte_eth_rx_burst(ports->id[port_num], 0, buf, PACKET_READ_SIZE);
-		// ports->rx_stats.rx[port_num] += rx_count;
-		// rx_count = rte_eth_rx_burst(1, 0, buf, PACKET_READ_SIZE);  /** TODO: Remove this */
 
 		/* Now process the NIC packets read */
 		if (likely(rx_count > 0))
@@ -266,6 +260,10 @@ listen_for_connections(__rte_unused void *arg)
 	return 0;
 }
 
+
+/**
+ * Initiate the domains for all the clients
+*/
 static void
 init_client_domains()
 {
@@ -297,7 +295,12 @@ init_client_domains()
 		region_id = create_region(4096);
 		char *region_base = map_region(region_id, 4096);
 		memset(region_base, 0, 4096);
+
+		/**
+		 * Annotate the region for usage
+		*/
 		shared_region_annotated(dom_id, region_id, CAPSTONE_ANNOTATION_PERM_INOUT, CAPSTONE_ANNOTATION_REV_SHARED);
+
 		client_domains[i].id = dom_id;
 		client_domains[i].region_base = region_base;
 
@@ -319,17 +322,8 @@ main(int __argc, char *__argv[])
     }
 
     int ret = 0;
-    // unsigned lcore_id;
-	// uint16_t port_id;
-	// uint32_t i = 0;
-	// int (*fs[RTE_MAX_LCORE])(void *) = { 
-	// 	listen_for_connections, 
-	// 	do_packet_forwarding, 
-	// 	check_messages 
-	// };
 
     uint8_t num_clients = 0;
-    // struct port_info *ports = NULL;
 
     signal(SIGINT, signal_handler);
 
@@ -338,7 +332,6 @@ main(int __argc, char *__argv[])
         goto end;
 
     num_clients = get_num_clients();
-    // ports = get_ports();
 
     if (num_clients <= 0) {
         fprintf(stderr, "Invalid number of client %hhu.\n", num_clients);
@@ -348,18 +341,6 @@ main(int __argc, char *__argv[])
 	fprintf(stdout, "Initilized server with %hhu clients.\n", num_clients);
 	init_client_domains();
 
-    // if (ports == NULL) {
-    //     fprintf(stderr, "Ports array could not be initialized.\n");
-    //     goto rte_eal_cleanup;
-    // }
-
-	// fprintf(stdout, "Initilized server with %hhu clients and ports %p.\n", num_clients, ports);
-
-	// /* Launches the functions on a separate lcore. 8< */
-	// RTE_LCORE_FOREACH_WORKER(lcore_id) {
-	// 	rte_eal_remote_launch(fs[i++], NULL, lcore_id);
-	// }
-
 	start_cmdline();
 	asm volatile (".insn r 0x5b, 0x1, 0x46, x0, x0, x0");
 
@@ -367,10 +348,6 @@ main(int __argc, char *__argv[])
 
 rte_eal_cleanup:
 
-	// RTE_ETH_FOREACH_DEV(port_id) {
-	// 	rte_eth_dev_stop(port_id);
-	// 	rte_eth_dev_close(port_id);
-	// }
     /* clean up the EAL */
     rte_eal_cleanup();
 

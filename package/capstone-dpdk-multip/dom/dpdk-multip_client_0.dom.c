@@ -9,11 +9,14 @@
 #define PRINT(v) __asm__ volatile(".insn r 0x5b, 0x1, 0x43, x0, %0, x0" ::"r"(v))
 #define CAPSTONE_DPI_REGION_SHARE 0x1
 
-#define SERVER_GET 0xacef
-#define SERVER_PUT 0xaddd
-#define CLIENT_GET 0xccef
-#define CLIENT_PUT 0xcadd
+/**
+ * Values used by the custom communication protocol
+ * The server and each client domain should use the exact same values for expected protocol communication
+*/
+#define SERVER_GET 0xacef  /* Signals the server that a client produced something that can be consumed */
+#define CLIENT_PUT 0xcadd  /* signals the client that the server placed some information in the shared region */
 #define ACK 0xaccc
+/* ################################################ */
 
 #define PROD_NUMBER 25
 
@@ -75,10 +78,6 @@ __domentry __domreentry void dpdk_client1(__domret void *ra, unsigned action, un
             /**
              * Produce values for the server process
             */
-
-        //    *g_shared_region = SERVER_PUT;  /** Set the proper operation for the server - disabled for now */
-        //    *(g_shared_region + 4) = PROD_NUMBER;
-
             g_shared_region[1] = PROD_NUMBER;
 
             i = 0;

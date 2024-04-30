@@ -3,11 +3,14 @@
 
 #include "capstone.h"
 
-#define SERVER_GET 0xacef
-#define SERVER_PUT 0xaddd
-#define CLIENT_GET 0xccef
-#define CLIENT_PUT 0xcadd
+/**
+ * Values used by the custom communication protocol
+ * The server and each client domain should use the exact same values for expected protocol communication
+*/
+#define SERVER_GET 0xacef  /* Signals the server that a client produced something that can be consumed */
+#define CLIENT_PUT 0xcadd  /* signals the client that the server placed some information in the shared region */
 #define ACK 0xaccc
+/* ################################################ */
 
 int capstone_init();
 int capstone_cleanup();

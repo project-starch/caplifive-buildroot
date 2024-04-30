@@ -41,6 +41,9 @@ send_to_client_domain(dom_id_t __dom_id, void *__region_base, char *__msg_arr)
 
     tok = strtok(__msg_arr, " ");
 
+    /**
+     * We construct an array to be sent to the client domain
+    */
     printf("Array sent to client:");
     while (tok != NULL) {
         val = strtoul(tok, &ptr, 10);
