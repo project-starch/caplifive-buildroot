@@ -10,7 +10,7 @@
 #include <assert.h>
 #include "lib/libcapstone.h"
 
-// #define __NULLB_SPLIT_ENABLED__
+// #define __CAPSTONE_DEBUG_FLAG__
 
 #define DEBUG_COUNTER_SHARED 10
 #define DEBUG_COUNTER_SHARED_TIMES 11
@@ -56,7 +56,7 @@
 #define CONNECTION_NUM 3
 #define CGI_ELF_REGION_SIZE (4096 * 64)
 
-#ifdef __NULLB_SPLIT_ENABLED__
+#ifdef __CAPSTONE_DEBUG_FLAG__
     #define print_nobuf(...) do { printf(__VA_ARGS__); fflush(stdout); } while(0)
 #else
     #define print_nobuf(...) do {;} while(0)
