@@ -10,7 +10,7 @@ It also includes a **Linux kernel module** for Captainer, along with correspondi
 
 ## 🛠️ **Dependencies**
 
-Before building, ensure you have the following repositories built:
+Before building, ensure you have the following repositories built (Alternatively, use the `build.sh` script in [Capstone-QEMU](https://github.com/project-starch/capstone-qemu/) to build the full system):
 
 1. [Capstone-C](https://github.com/jasonyu1996/capstone-c/)
 2. [Capstone-QEMU](https://github.com/project-starch/capstone-qemu/)
