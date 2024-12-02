@@ -84,7 +84,8 @@ main() {
     findutils 
     bzip2 
     zlib1g-dev 
-    ninja-build 
+    ninja-build
+    expect
     libslirp-dev 
     python3-pip 
     python3-venv
@@ -92,7 +93,7 @@ main() {
     
     install_packages "${dependencies[@]}"
     check_rust_toolchain
-    CAPSTONE_CC_PATH=../capstone-c/target/debug
+    export CAPSTONE_CC_PATH="$(realpath ../capstone-c/target/release)" #put the capstone-c binary directory here
     make setup
     make build CAPSTONE_CC_PATH=$CAPSTONE_CC_PATH
     echo "Local Build Complete"

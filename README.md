@@ -1,34 +1,56 @@
-# Captainer Buildroot and Kernel Modules
+# 🌟 Captainer Buildroot and Kernel Modules
 
-This repo provides scripts and config files for building
-a Captainer system that can run on [Capstone-QEMU](https://github.com/project-starch/capstone-qemu).
+This repository provides scripts and configuration files for building a **Captainer system** that can run on [Capstone-QEMU](https://github.com/project-starch/capstone-qemu).
 
-Also included is a Linux kernel module for Captainer, along with a
-corresponding test programs and case studies.
+It also includes a **Linux kernel module** for Captainer, along with corresponding **test programs** and **case studies**.
 
-## Dependencies
+> **Note:** The full system can be built using the build script provided in [CAPSTONE-QEMU](https://github.com/project-starch/capstone-qemu).
 
-Make sure your environment meets the [requirements of
-Buildroot](https://buildroot.org/downloads/manual/manual.html#_about_buildroot).
-Also make sure that you have the Rust toolchain and have already
-built
-[Capstone-C](https://github.com/jasonyu1996/capstone-c/) and [Capstone-Qemu](https://github.com/project-starch/capstone-qemu).
 
-## Build Instructions
 
-Initially, simply run the following
+## 🛠️ **Dependencies**
 
-```sh
-make setup
-make build CAPSTONE_CC_PATH=<path-to-capstone-c-compiler-directory>
+Before building, ensure you have the following repositories built:
+
+1. [Capstone-C](https://github.com/jasonyu1996/capstone-c/)
+2. [Capstone-QEMU](https://github.com/project-starch/capstone-qemu/)
+
+
+
+## 🏗️ **Build Instructions**
+
+### Option 1: Local Build (Debian-based Machine)
+
+To build on a local Debian-based machine, make sure you have locally built **Capstone-C** and **Capstone-QEMU** using their respective local build scripts. Then, run the following command:
+
+```bash
+    ./local_build.sh
 ```
 
-You will be able to find the built images in `./build/images`, ready
-to be fed to [Capstone-QEMU](https://github.com/project-starch/capstone-qemu).
+### Option 2: Docker Image Build
 
+To build the Docker image, follow these steps:
+
+1. First, build the **Capstone-C** and **Capstone-QEMU** images (they are tagged as `capstone-c` and `qemu-build` if built using the default instructions).
+2. If you've customized the names, make sure to change them in the `Dockerfile`.
+
+3. Run the following command to build the full-system Docker image:
+
+```bash
+    docker build -t <tag> .
+```
+
+
+
+> You will be able to find the built images in `./build/images`, ready to be fed to [Capstone-QEMU](https://github.com/project-starch/capstone-qemu).
+
+
+
+### ⚡ **Quick Notes:**
+---
 If you have made changes to OpenSBI, sync and rebuild with
 
-> Please manually delete `sbi_capstone_dom.c.S` and `capstone_int_handler.c.S` in `components/opensbi/lib/sbi` before rebuild.
+**Please manually delete `sbi_capstone_dom.c.S` and `capstone_int_handler.c.S` in `components/opensbi/lib/sbi` before rebuild.**
 
 ```sh
 make build CAPSTONE_CC_PATH=<path-to-capstone-c-compiler-directory> A=opensbi-rebuild
@@ -46,16 +68,13 @@ For the kernel module or the test program,
 make build CAPSTONE_CC_PATH=<path-to-capstone-c-compiler-directory> A=modcapstone-rebuild
 ```
 
-You can place the files you want to include in the rootfs in
-`./overlay`.
+You can place the files you want to include in the rootfs in `./overlay`.
 
-## Quick Start
+## 🚀 **Quick Start**
 
-Pass the following arguments to [Capstone-QEMU](https://github.com/project-starch/capstone-qemu) in order to run all case studies:
+1. You can run the `start.sh` script in the [Capstone-QEMU](https://github.com/project-starch/capstone-qemu) repository, or you can pass the following arguments to the qemu image:
 
-> Alternatively, you can simply run the `start.sh` script in Capstone-QEMU repo.
-
-```
+```bash
 -M virt-capstone -m 8G -nographic
 -bios <path>/build/images/fw_jump.elf
 -kernel <path>/build/images/Image
@@ -68,35 +87,42 @@ Pass the following arguments to [Capstone-QEMU](https://github.com/project-starc
 -serial chardev:ch0
 -device e1000,netdev=net0
 -cpu rv64,sstc=false,h=false
+# Where `<path>` is the local working directory of this repo.
 ```
+---
 
-where `<path>` is the path to the local working directory of this repo.
+2. Log in using the `root` account. Both the kernel module and test program can be found at `/`.
 
-Log in using `root`.
+--- 
 
-Both the kernel module and the test program are located at `/`.
-To install or uninstall the kernel module,
+3. To install or uninstall the kernel module, run:
 
-```sh
-insmod /capstone.ko # install
-rmmod capstone  # uninstall
+```bash
+# Install the kernel module
+insmod /capstone.ko
 ```
+```bash
+# Uninstall the kernel module
+rmmod capstone
+```
+---
 
-After the kernel module is installed, you can run the test program
+4. After installing the kernel module, run the test program with:
 
-```sh
+```bash
 /capstone-test.user <test domain ELF file> [<number of times to call the domain (default: 1)>]
 ```
 
-The `/run-test` script does all the operations above.
+---
 
-```sh
+> Alternatively, use the `run-test` script to automate the entire process:
+
+```bash
 /run-test <test domain name> [<number of times to call the domain (default: 1)>]
 ```
 
-The test domain name does not include the `.dom` suffix.
 
-## Case Study: Block Device Driver 
+## 📜 Case Study: Block Device Driver 
 
 ### Build Instructions
 
@@ -112,30 +138,34 @@ Build the user space setup program:
 make build CAPSTONE_CC_PATH=<path-to-capstone-c-compiler-directory> A=modcapstone-rebuild
 ```
 
-### Quick Start
+###  Quick Start
 
-> TL;DR: Run `CAPSTONE_QEMU_PATH=<path-to-capstone-qemu> expect capstone_nullb.tcl` in `scripts` to see the results.
+Inside the qemu image after logging in:
 
-Install the `capstone` and `configfs` kernel modules:
+1. Install the `capstone` and `configfs` kernel modules:
 
 ```sh
 modprobe configfs
 insmod /capstone.ko
 ```
+---
 
-Run the user space setup program:
+2. Run the user space setup program:
 
 ```sh
 /null_blk.user
 ```
 
-Install the null block device driver:
+---
+
+3. Install the null block device driver:
 
 ```sh
 insmod /nullb/capstone_split/null_blk.ko
 ```
+---
 
-Then the null block device `/dev/nullb0` is ready to be used. You can write to the driver:
+4. Then the null block device `/dev/nullb0` is ready to be used. You can write to the driver:
 
 ```sh
 echo "hello world" | dd of=/dev/nullb0 bs=1024 count=10
@@ -153,7 +183,7 @@ If you want to remove the device, simple run:
 rmmod null_blk
 ```
 
-## Case Study: DPDK Multi-Process Sample Application
+<!-- ## Case Study: DPDK Multi-Process Sample Application
 
 ### Dependencies
 
@@ -210,9 +240,9 @@ And then,
 ```sh
 receive_from_domain 0
 receive_from_domain 1
-```
+``` -->
 
-## Case Study: Web Server in Nested Domains
+## 📜 Case Study: Web Server in Nested Domains
 
 ### Build Instructions
 
@@ -230,21 +260,23 @@ make build CAPSTONE_CC_PATH=<path-to-capstone-c-compiler-directory> A=capstone-n
 
 ### Quick Start
 
-> TL;DR: Run `CAPSTONE_QEMU_PATH=<path-to-capstone-qemu> expect capstone_nested.tcl` in `scripts` to see the results.
+Inside the qemu image after logging in:
 
-Install the `capstone` kernel module:
+1. Install the `capstone` kernel module:
 
 ```sh
 insmod /capstone.ko
 ```
+---
 
-Start the web server at the background:
+2. Start the web server at the background:
 
 ```sh
 /miniweb_frontend.user &
 ```
+---
 
-Now the web server is ready to be used. You can now use `wget` to send a GET request to the web server, e.g.,
+3. Now the web server is ready to be used. You can now use `wget` to send a GET request to the web server, e.g.,
 
 ```sh
 busybox wget -O - http://localhost:8888/index.html
@@ -265,37 +297,30 @@ busybox wget --post-data "name=Bob&email=bob@email.com" -O - http://localhost:88
 ```sh
 busybox wget --post-data "name=Alex&email=alex@email.com" -O - http://localhost:8888/cgi/cgi_register_fail.dom
 ```
+---
 
-## Case Study Benchmarks
+## 📊 Case Study Benchmarks
 
 ### Benchmark Generation
 
-> TL;DR: Use benchmarks in `overlay/benchmark`. No need for generation.
+> Note: Expected benchmarks in `overlay/benchmark`.
 
-Simple run the scripts in `overlay-sources` to randomly generate the benchmarks for each case study:
+Simply run the scripts in `overlay-sources` to randomly generate the benchmarks for each case study:
 
 ```sh
 cd overlay-sources
 ./benchmark-nullb-gen.sh > ../overlay/benchmark/null-blk # for block device driver
-./benchmark-dpdk-gen.sh > ../overlay/benchmark/dpdk_multip_commands # for DPDK multi-process sample application
 ./benchmark-nested-gen.sh > ../overlay/benchmark/nested-enclave # for web server in nested domains
 ```
 
 ### Benchmarking
 
-Install `expect` on your machine. If you are on Ubuntu/Debian, simple run the following command:
-
-```sh
-sudo apt install expect
-```
-
-Simple run the scripts in `scripts` as below to run the benchmarks automatically:
+Simply run the scripts in `scripts` directory (present in docker container as well as local machine) as below to run the benchmarks automatically:
 
 ```sh
 cd scripts
 # replace <<path-to-capstone-qemu> to the real path on your machine
 CAPSTONE_QEMU_PATH=<path-to-capstone-qemu> expect benchmark_nullb.tcl
-CAPSTONE_QEMU_PATH=<path-to-capstone-qemu> expect benchmark_dpdk.tcl
 CAPSTONE_QEMU_PATH=<path-to-capstone-qemu> expect benchmark_nested.tcl
 ```
 

@@ -12,5 +12,5 @@ ENV PATH="/root/.cargo/bin:${PATH}"
 
 RUN . $HOME/.cargo/env
 
-ENV CAPSTONE_CC_PATH=/app/capstone-c/target/debug
+ENV CAPSTONE_CC_PATH=/app/capstone-c/target/release
 RUN cd captainer-buildroot && make setup && make build CAPSTONE_CC_PATH=$CAPSTONE_CC_PATH
