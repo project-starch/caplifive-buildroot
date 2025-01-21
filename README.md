@@ -1,19 +1,19 @@
-# 🌟 Captainer Buildroot and Kernel Modules
+# 🌟 Caplifive Buildroot and Kernel Module
 
-This repository provides scripts and configuration files for building a **Captainer system** that can run on [Capstone-QEMU](https://github.com/project-starch/capstone-qemu).
+This repository provides scripts and configuration files for building a **[Caplifive](https://capstone.kisp-lab.org/) system** that can run on [Caplifive-QEMU](https://github.com/project-starch/caplifive-qemu).
 
-It also includes a **Linux kernel module** for Captainer, along with corresponding **test programs** and **case studies**.
+It also includes a **Linux kernel module** for Caplifive, along with corresponding **test programs** and **case studies**.
 
-> **Note:** The full system can be built using the build script provided in [CAPSTONE-QEMU](https://github.com/project-starch/capstone-qemu).
+> **Note:** The full system can be built using the build script provided in [caplifive-qemu](https://github.com/project-starch/caplifive-qemu).
 
 
 
 ## 🛠️ **Dependencies**
 
-Before building, ensure you have the following repositories built (Alternatively, use the `build.sh` script in [Capstone-QEMU](https://github.com/project-starch/capstone-qemu/) to build the full system):
+Before building, ensure you have the following repositories built (Alternatively, use the `build.sh` script in [Caplifive-QEMU](https://github.com/project-starch/caplifive-qemu/) to build the full system):
 
 1. [Capstone-C](https://github.com/jasonyu1996/capstone-c/)
-2. [Capstone-QEMU](https://github.com/project-starch/capstone-qemu/)
+2. [Caplifive-QEMU](https://github.com/project-starch/caplifive-qemu/)
 
 
 
@@ -21,7 +21,7 @@ Before building, ensure you have the following repositories built (Alternatively
 
 ### Option 1: Local Build (Debian-based Machine)
 
-To build on a local Debian-based machine, make sure you have locally built **Capstone-C** and **Capstone-QEMU** using their respective local build scripts. Then, run the following command:
+To build on a local Debian-based machine, make sure you have locally built **Capstone-C** and **Caplifive-QEMU** using their respective local build scripts. Then, run the following command:
 
 ```bash
     ./local_build.sh
@@ -31,7 +31,7 @@ To build on a local Debian-based machine, make sure you have locally built **Cap
 
 To build the Docker image, follow these steps:
 
-1. First, build the **Capstone-C** and **Capstone-QEMU** images (they are tagged as `capstone-c` and `qemu-build` if built using the default instructions).
+1. First, build the **Capstone-C** and **Caplifive-QEMU** images (they are tagged as `capstone-c` and `qemu-build` if built using the default instructions).
 2. If you've customized the names, make sure to change them in the `Dockerfile`.
 
 3. Run the following command to build the full-system Docker image:
@@ -42,7 +42,7 @@ To build the Docker image, follow these steps:
 
 
 
-> You will be able to find the built images in `./build/images`, ready to be fed to [Capstone-QEMU](https://github.com/project-starch/capstone-qemu).
+> You will be able to find the built images in `./build/images`, ready to be fed to [Caplifive-QEMU](https://github.com/project-starch/caplifive-qemu).
 
 
 
@@ -72,7 +72,7 @@ You can place the files you want to include in the rootfs in `./overlay`.
 
 ## 🚀 **Quick Start**
 
-1. You can run the `start.sh` script in the [Capstone-QEMU](https://github.com/project-starch/capstone-qemu) repository, or you can pass the following arguments to the qemu image:
+1. You can run the `start.sh` script in the [Caplifive-QEMU](https://github.com/project-starch/caplifive-qemu) repository, or you can pass the following arguments to the qemu image:
 
 ```bash
 -M virt-capstone -m 8G -nographic
@@ -93,7 +93,7 @@ You can place the files you want to include in the rootfs in `./overlay`.
 
 2. Log in using the `root` account. Both the kernel module and test program can be found at `/`.
 
---- 
+---
 
 3. To install or uninstall the kernel module, run:
 
@@ -122,7 +122,7 @@ rmmod capstone
 ```
 
 
-## 📜 Case Study: Block Device Driver 
+## 📜 Case Study: Block Device Driver
 
 ### Build Instructions
 
@@ -204,7 +204,7 @@ make build CAPSTONE_CC_PATH=<path-to-capstone-c-compiler-directory> A=capstone-d
 
 ### Quick Start
 
-> TL;DR: Run `CAPSTONE_QEMU_PATH=<path-to-capstone-qemu> expect capstone_dpdk_multip.tcl` in `scripts` to see the results.
+> TL;DR: Run `CAPSTONE_QEMU_PATH=<path-to-caplifive-qemu> expect capstone_dpdk_multip.tcl` in `scripts` to see the results.
 
 Install the `capstone` kernel module:
 
@@ -319,9 +319,9 @@ Simply run the scripts in `scripts` directory (present in docker container as we
 
 ```sh
 cd scripts
-# replace <<path-to-capstone-qemu> to the real path on your machine
-CAPSTONE_QEMU_PATH=<path-to-capstone-qemu> expect benchmark_nullb.tcl
-CAPSTONE_QEMU_PATH=<path-to-capstone-qemu> expect benchmark_nested.tcl
+# replace <<path-to-caplifive-qemu> to the real path on your machine
+CAPSTONE_QEMU_PATH=<path-to-caplifive-qemu> expect benchmark_nullb.tcl
+CAPSTONE_QEMU_PATH=<path-to-caplifive-qemu> expect benchmark_nested.tcl
 ```
 
 ### Benchmark Results
