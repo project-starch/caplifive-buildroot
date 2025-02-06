@@ -6,7 +6,7 @@
 	url = https://github.com/buildroot/buildroot.git
 [submodule "components/opensbi"]
 	path = components/opensbi
-	url = https://github.com/project-starch/capstone-opensbi.git
+	url = https://github.com/project-starch/caplifive-opensbi
 [submodule "package/sbi-domain/capstone-sbi"]
 	path = package/capstone-sbi-domain/capstone-sbi
-	url = https://github.com/project-starch/capstone-sbi.git
+	url = https://github.com/project-starch/caplifive-sbi.git
