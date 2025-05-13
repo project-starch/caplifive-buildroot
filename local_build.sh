@@ -1,4 +1,5 @@
 #!/bin/bash
+set -e
 check_rust_toolchain() {
     if ! command -v rustc &> /dev/null; then
         echo "Rust is not installed. Installing Rust..."
@@ -56,7 +57,6 @@ install_packages() {
 
 
 main() {
-
     detect_package_manager
 
     local dependencies=(
