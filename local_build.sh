@@ -19,9 +19,9 @@ check_rust_toolchain() {
 
 detect_package_manager() {
     if command -v apt-get &> /dev/null; then
-        PKG_MANAGER="apt-get"
-        PKG_UPDATE="apt-get update"
-        PKG_INSTALL="apt-get install -y"
+        PKG_MANAGER="sudo apt-get"
+        PKG_UPDATE="sudo apt-get update"
+        PKG_INSTALL="sudo apt-get install -y"
         DEBIAN_FRONTEND=noninteractive
     else
         echo "Unsupported package manager. Please install dependencies manually."
