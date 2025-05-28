@@ -1,7 +1,11 @@
 [submodule "components/opensbi"]
 	path = components/opensbi
 	url = https://github.com/project-starch/caplifive-opensbi
+	branch = genesys-testing
 [submodule "package/sbi-domain/capstone-sbi"]
 	path = package/capstone-sbi-domain/capstone-sbi
 	url = https://github.com/project-starch/caplifive-sbi.git
 	branch = genesys-testing
+[submodule "buildroot"]
+	path = buildroot
+	url = git://git.buildroot.net/buildroot
