@@ -1,18 +1,18 @@
 SHELL := /bin/bash
 BUILDROOT_EXTERNAL = $(CURDIR)
-DEFCONFIG = $(CURDIR)/configs/qemu_capstone_defconfig
+DEFCONFIG = $(CURDIR)/configs/basebr_defconfig
 CONFIG_PATH = $(CURDIR)/build
 CAPSTONE_S_OUTPUT = $(CURDIR)/components/opensbi/lib/sbi/sbi_capstone_dom.c.S \
 		$(CURDIR)/components/opensbi/lib/sbi/capstone_int_handler.c.S
 CAPSTONE_S_INPUT = $(CURDIR)/components/opensbi/lib/sbi/capstone-sbi/sbi_capstone.c
 CAPSTONE_S_INCLUDE = $(CURDIR)/components/opensbi/lib/sbi/capstone-sbi
+PLATFORM := fpga/ariane
 
 .PHONY: all flash-sdcard format-sd setup build clean
 
 all:
 
 setup:
-	git submodule update --init --recursive
 	mkdir -p overlay
 	LD_LIBRARY_PATH="" $(MAKE) -C buildroot defconfig BR2_EXTERNAL="$(BUILDROOT_EXTERNAL)" BR2_DEFCONFIG="$(DEFCONFIG)" O="$(CONFIG_PATH)"
 
@@ -23,7 +23,7 @@ build: $(CAPSTONE_S_OUTPUT)
 	fi
 
 QEMU_BUILD = $(CURDIR)/build/images
-FWJUMP = $(QEMU_BUILD)/fw_jump.bin
+FWJUMP = $(QEMU_BUILD)/fw_payload.bin
 KERNEL = $(QEMU_BUILD)/Image
 ROOTFS = $(QEMU_BUILD)/rootfs.ext2
 
@@ -54,7 +54,7 @@ flash-sdcard: format-sd
 	sudo dd if=$(FWJUMP) of=$(SDDEVICE_PART1) bs=1M status=progress oflag=sync
 
 	@echo "Flashing kernel Image to partition 2 ($(SDDEVICE_PART2))..."
-	sudo dd if=$(KERNEL) of=$(SDDEVICE_PART2) bs=1M status=progress oflag=sync
+	# sudo dd if=$(KERNEL) of=$(SDDEVICE_PART2) bs=1M status=progress oflag=sync
 
 	@echo "Flashing rootfs.ext2 to partition 3 ($(SDDEVICE_PART3))..."
 	sudo dd if=$(ROOTFS) of=$(SDDEVICE_PART3) bs=1M status=progress oflag=sync
@@ -64,8 +64,7 @@ format-sd:
 	@echo "Formatting $(SDDEVICE) for QEMU images..."
 	sudo sgdisk --clear -g \
 		--new=1:$(FWJUMP_SECTORSTART):$(FWJUMP_SECTOREND) --typecode=1:3000 \
-		--new=2:$(KERNEL_SECTORSTART):$(KERNEL_SECTOREND) --typecode=2:8300 \
-		--new=3:$(ROOTFS_SECTORSTART):0                 --typecode=3:8300 \
+		--new=2:$(ROOTFS_SECTORSTART):0 --typecode=2:8300 \
 		$(SDDEVICE)
 
 $(CAPSTONE_S_OUTPUT):%.c.S:%.c
