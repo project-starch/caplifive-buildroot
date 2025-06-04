@@ -7,6 +7,7 @@
   model = "eth,ariane-bare";
   chosen {
     stdout-path = "/soc/uart@10000000:115200";
+    bootargs = "earlycon console=ttyS0,115200";
   };
   cpus {
     #address-cells = <1>;
@@ -144,4 +145,3 @@
     };
   };
 };
-// delete ethernet device if disabled
