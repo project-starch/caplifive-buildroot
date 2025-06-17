@@ -6,15 +6,15 @@
   compatible = "eth,ariane-bare-dev";
   model = "eth,ariane-bare";
   chosen {
-    stdout-path = "/soc/uart@10000000:115200";
-    bootargs = "earlycon console=ttyS0,115200";
+    stdout-path = "/soc/uart@10000000:57600";
+    bootargs = "earlycon console=ttyS0,57600";
   };
   cpus {
     #address-cells = <1>;
     #size-cells = <0>;
-    timebase-frequency = <16000000 >;
+    timebase-frequency = <12500000 >;
     CPU0: cpu@0 {
-      clock-frequency = <32000000 >;
+      clock-frequency = <25000000 >;
       device_type = "cpu";
       reg = <0>;
       status = "okay";
@@ -75,8 +75,8 @@
     uart@10000000 {
       compatible = "ns16550a";
       reg = <0x0 0x10000000 0x0 0x1000>;
-      clock-frequency = <32000000 >;
-      current-speed = <115200>;
+      clock-frequency = <25000000 >;
+      current-speed = <57600>;
       interrupt-parent = <&PLIC0>;
       interrupts = <1>;
       reg-shift = <2>; // regs are spaced on 32 bit boundary

@@ -9,6 +9,11 @@ CAPSTONE_S_INCLUDE = $(CURDIR)/components/opensbi/lib/sbi/capstone-sbi
 PLATFORM := fpga/ariane
 SDDEVICE ?=
 
+LINUX_PAYLOAD ?=
+ifeq ($(LINUX_PAYLOAD),1)
+	export LINUX_PAYLOAD=1
+endif
+
 .PHONY: all flash-sdcard format-sd setup build clean
 
 all:
