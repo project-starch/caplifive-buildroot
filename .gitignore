@@ -2,3 +2,4 @@ build/*
 !build/local.mk
 *.bk
 .vscode/
+.out
