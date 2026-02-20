@@ -95,7 +95,13 @@ main() {
     check_rust_toolchain
     export CAPSTONE_CC_PATH="$(realpath ../capstone-c)"
     make setup
-    make build CAPSTONE_CC_PATH=$CAPSTONE_CC_PATH
+
+    if [ -n "$VANILLA" ]; then
+        make build-vanilla CAPSTONE_CC_PATH=$CAPSTONE_CC_PATH $@
+    else
+        make build CAPSTONE_CC_PATH=$CAPSTONE_CC_PATH $@
+    fi
+
     echo "Local Build Complete"
 }
 main "$@"

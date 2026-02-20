@@ -8,4 +8,4 @@
 	branch = genesys-testing
 [submodule "buildroot"]
 	path = buildroot
-	url = git://git.buildroot.net/buildroot
+	url = https://gitlab.com/buildroot.org/buildroot.git

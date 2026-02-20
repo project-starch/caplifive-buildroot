@@ -9,18 +9,25 @@ CAPSTONE_S_INCLUDE = $(CURDIR)/components/opensbi/lib/sbi/capstone-sbi
 PLATFORM := fpga/ariane
 SDDEVICE ?=
 
-LINUX_PAYLOAD ?=
-ifeq ($(LINUX_PAYLOAD),1)
-	export LINUX_PAYLOAD=1
-endif
+ LINUX_PAYLOAD ?=
+ ifeq ($(LINUX_PAYLOAD),1)
+	 export LINUX_PAYLOAD=1
+ endif
 
-.PHONY: all flash-sdcard format-sd setup build clean
+.PHONY: all flash-sdcard format-sd setup build build-vanilla clean
 
 all:
 
 setup:
 	mkdir -p overlay
 	LD_LIBRARY_PATH="" $(MAKE) -C buildroot defconfig BR2_EXTERNAL="$(BUILDROOT_EXTERNAL)" BR2_DEFCONFIG="$(DEFCONFIG)" O="$(CONFIG_PATH)" -j $(shell nproc)
+
+
+build-vanilla:
+	LD_LIBRARY_PATH="" $(MAKE) -C buildroot BR2_EXTERNAL="$(BUILDROOT_EXTERNAL)" O="$(CONFIG_PATH)" $(A) -j $(shell nproc)
+	if [ -n "$(A)" ]; then \
+		LD_LIBRARY_PATH="" $(MAKE) -C buildroot BR2_EXTERNAL="$(BUILDROOT_EXTERNAL)" O="$(CONFIG_PATH)" -j $(shell nproc); \
+	fi
 
 build: $(CAPSTONE_S_OUTPUT)
 	LD_LIBRARY_PATH="" $(MAKE) -C buildroot BR2_EXTERNAL="$(BUILDROOT_EXTERNAL)" O="$(CONFIG_PATH)" $(A) -j $(shell nproc)
