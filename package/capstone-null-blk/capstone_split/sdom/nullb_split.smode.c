@@ -9,9 +9,16 @@
 #define DEBUG_COUNTER_SHARED_TIMES 11
 #define DEBUG_COUNTER_BORROWED 12
 #define DEBUG_COUNTER_BORROWED_TIMES 13
+
+#ifdef CAPSTONE_DEBUG_ENABLE
 #define debug_counter_inc(counter_no, delta) __asm__ volatile(".insn r 0x5b, 0x1, 0x45, x0, %0, %1" :: "r"(counter_no), "r"(delta))
 #define debug_shared_counter_inc(delta) debug_counter_inc(DEBUG_COUNTER_SHARED, delta); debug_counter_inc(DEBUG_COUNTER_SHARED_TIMES, 1)
 #define debug_borrowed_counter_inc(delta) debug_counter_inc(DEBUG_COUNTER_BORROWED, delta); debug_counter_inc(DEBUG_COUNTER_BORROWED_TIMES, 1)
+#else
+#define debug_counter_inc(counter_no, delta)
+#define debug_shared_counter_inc(delta)
+#define debug_borrowed_counter_inc(delta)
+#endif
 
 #define METADATA_REGION_ID 1
 
@@ -32,7 +39,7 @@ static void nullbs_null_validate_conf(void)
 	char *wo_region_base = REGION_ID_TO_BASE(wo_region);
 	region_id_t nullb_dev_region = wo_region - 1;
 	char *nullb_dev_region_base = REGION_ID_TO_BASE(nullb_dev_region);
-	
+
 	int rv;
 	struct nullb_device *dev = (struct nullb_device *)nullb_dev_region_base;
 
@@ -107,7 +114,7 @@ static void nullbs_nullb_to_queue(void)
 	char *ro_region_base = REGION_ID_TO_BASE(ro_region);
 
 	struct nullb *nullb = (struct nullb *)ro_region_base;
-	
+
 	int index = 0;
 
 	if (nullb->nr_queues != 1)
@@ -140,17 +147,17 @@ static void nullbs_bio_op(void)
 	struct bio *bio = (struct bio *)ro_region_base;
 
 	enum req_op rv = bio->bi_opf & REQ_OP_MASK;
-	
+
 	*((enum req_op *)(wo_region_base)) = rv;
 
 	debug_borrowed_counter_inc(sizeof(enum req_op));
 
 	sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_DE_LINEAR,
 		wo_region, 0, 0, 0, 0, 0);
-	
+
 	sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_POP,
 		2, 0, 0, 0, 0, 0);
-	
+
 	return;
 }
 
@@ -163,7 +170,7 @@ static void nullbs_end_cmd_bio(void)
 	char *wo_region_base = REGION_ID_TO_BASE(wo_region);
 	region_id_t ro_region = wo_region - 1;
 	char *ro_region_base = REGION_ID_TO_BASE(ro_region);
-	
+
 	struct nullb_cmd *cmd = (struct nullb_cmd *)ro_region_base;
 
 	*((int *)(wo_region_base)) = cmd->error;
@@ -181,7 +188,7 @@ static void nullbs_end_cmd_bio(void)
 static __attribute__((naked)) int __init nullb_split_init(void)
 {
 	__asm__ volatile ("mv sp, %0" :: "r"(stack + 4096));
-	
+
 	while(1) {
 		unsigned long rv = 0;
 
@@ -208,7 +215,7 @@ static __attribute__((naked)) int __init nullb_split_init(void)
                 rv = -1;
                 break;
         }
-        
+
 		sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_DOM_RETURN,
 			rv, 0, 0, 0, 0, 0);
 	}
@@ -216,7 +223,7 @@ static __attribute__((naked)) int __init nullb_split_init(void)
 	return 0;
 }
 
-static void __exit nullb_split_exit(void)
+static void nullb_split_exit(void)
 {
 	return;
 }

@@ -84,7 +84,7 @@ static void ioctl_create_dom(struct ioctl_dom_create_args* __user args) {
 	unsigned long dom_pages = (dom_tot_size - 1) / PAGE_SIZE + 1;
 	unsigned long dom_pages_log2 = dom_pages == 1 ? 0 : (ilog2(dom_pages - 1) + 1);
 
-	unsigned long dom_vaddr = (unsigned long)__get_free_pages(GFP_HIGHUSER, dom_pages_log2);
+	unsigned long dom_vaddr = (unsigned long)__get_free_pages(GFP_HIGHUSER | __GFP_ZERO, dom_pages_log2);
 	if (!dom_vaddr) {
 		pr_alert("Failed to allocate memory for domain.\n");
 		return;
@@ -100,7 +100,7 @@ static void ioctl_create_dom(struct ioctl_dom_create_args* __user args) {
 	struct sbiret sbi_res = sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_DOM_CREATE,
 		/* base paddr = */ dom_paddr,
 		/* code size = */ m_args.code_len,
-		/* tot size = */ (1 << dom_pages_log2) * PAGE_SIZE, 
+		/* tot size = */ (1 << dom_pages_log2) * PAGE_SIZE,
 		/* entry offset = */ m_args.entry_offset,
 		0, 0);
 	m_args.dom_id = (dom_id_t)sbi_res.value;
@@ -112,7 +112,7 @@ static void ioctl_create_dom(struct ioctl_dom_create_args* __user args) {
 
 		unsigned long dom_s_load_pages = (m_args.s_size - 1) / PAGE_SIZE + 1;
 		unsigned long dom_s_load_pages_log2 = dom_s_load_pages == 1 ? 0 : (ilog2(dom_s_load_pages - 1) + 1);
-		unsigned long dom_s_load_vaddr = (unsigned long)__get_free_pages(GFP_HIGHUSER, dom_s_load_pages_log2);
+		unsigned long dom_s_load_vaddr = (unsigned long)__get_free_pages(GFP_HIGHUSER | __GFP_ZERO, dom_s_load_pages_log2);
 		if(!dom_s_load_pages) {
 			pr_alert("Failed to allocate S-mode code region for domain.\n");
 			return;
@@ -129,6 +129,8 @@ static void ioctl_create_dom(struct ioctl_dom_create_args* __user args) {
 
 		if (sbi_res.value) {
 			pr_alert("Failed to initialise S mode\n");
+		} else {
+			pr_info("S mode initialisation successful\n");
 		}
 	}
 }
@@ -158,7 +160,7 @@ static void ioctl_create_region(struct ioctl_region_create_args* __user args) {
 	unsigned long n_pages = (m_args.len - 1) / PAGE_SIZE + 1;
 	unsigned long n_pages_log2 = n_pages == 1 ? 0 : (ilog2(n_pages - 1) + 1);
 
-	unsigned long vaddr = (unsigned long)__get_free_pages(GFP_HIGHUSER, n_pages_log2);
+	unsigned long vaddr = (unsigned long)__get_free_pages(GFP_HIGHUSER | __GFP_ZERO, n_pages_log2);
 	if(!vaddr) {
 		pr_alert("Failed to allocate memory region.\n");
 		return;
@@ -216,7 +218,7 @@ unsigned long share_region(dom_id_t dom_id, region_id_t region_id) {
 	pr_info("share_region: %d\n", region_id);
 	struct sbiret sbi_res = sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_SHARE,
 				dom_id, region_id, 0, 0, 0, 0);
-	return sbi_res.value;	
+	return sbi_res.value;
 }
 EXPORT_SYMBOL(share_region);
 
@@ -322,7 +324,7 @@ static int device_mmap(struct file *filp, struct vm_area_struct *vma) {
 	for(i = 0; i < region_n; i ++) {
 		pr_info("mmap[%d]: %lx %lx", regions[i].region_id, regions[i].base_paddr, regions[i].base_paddr + regions[i].len);
 	}
-	for(i = 0; i < region_n && 
+	for(i = 0; i < region_n &&
 		!(regions[i].len < MAP_SIZE_LIMIT && vm_offset >= regions[i].mmap_offset && vm_offset + vm_size <= regions[i].mmap_offset + regions[i].len);
 		i ++);
 	if(i >= region_n)
@@ -351,7 +353,7 @@ static struct miscdevice capstone_dev = {
 	.minor = MISC_DYNAMIC_MINOR,
 	.name = "capstone",
 	.fops = &fops,
-	.mode = 0666	
+	.mode = 0666
 };
 
 static int __init capstone_init(void)

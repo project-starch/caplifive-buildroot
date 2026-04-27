@@ -15,8 +15,14 @@
 #define MAX_REGION_N 64
 #define MAP_SIZE_LIMIT 0x10000000
 #define DEBUG_COUNTER_SWITCH_U 0
+
+#ifdef CAPSTONE_DEBUG_ENABLE
 #define debug_counter_inc(counter_no, delta) __asm__ volatile(".insn r 0x5b, 0x1, 0x45, x0, %0, %1" :: "r"(counter_no), "r"(delta))
 #define debug_counter_tick(counter_no) debug_counter_inc((counter_no), 1)
+#else
+#define debug_counter_inc(counter_no, delta)
+#define debug_counter_tick(counter_no)
+#endif
 
 struct ElfCode {
     int fd;
@@ -93,7 +99,7 @@ static int load_elf_code(const char *file_name, struct ElfCode *res) {
     }
 
     printf("Ok, good file.\n");
-    
+
     Elf64_Phdr *phdrs = (Elf64_Phdr*)(((void*)elf_header) + elf_header->e_phoff);
     Elf64_Half phnum = elf_header->e_phnum;
 
@@ -198,7 +204,7 @@ static int load_elf_code_ko(const char *file_name, struct ElfCode *res) {
 
     Elf64_Shdr *shdrs = (Elf64_Shdr*)(((void*)elf_header) + elf_header->e_shoff);
     Elf64_Half shnum = elf_header->e_shnum;
-    
+
     printf("Found %lu section headers\n", shnum);
 
     int sh_idx;
@@ -213,7 +219,7 @@ static int load_elf_code_ko(const char *file_name, struct ElfCode *res) {
                 exec_sh_idx = sh_idx;
                 printf("Found executable section header.\n");
             }
-            
+
             if (strcmp(shstrtab + shdrs[sh_idx].sh_name, ".init.text") == 0) {
                 init_text_sh_idx = sh_idx;
                 printf(".init.text found.\n");
@@ -233,8 +239,8 @@ static int load_elf_code_ko(const char *file_name, struct ElfCode *res) {
     res->fd = elf_fd;
     res->map_base = (void*)elf_header;
     res->size = file_stat.st_size;
-    unsigned long exec_start = (unsigned long)elf_header + shdrs[exec_sh_idx].sh_addr + shdrs[exec_sh_idx].sh_offset;
-    unsigned long init_text_start = (unsigned long)elf_header + shdrs[init_text_sh_idx].sh_addr + shdrs[init_text_sh_idx].sh_offset;
+    unsigned long exec_start = (unsigned long)elf_header + shdrs[exec_sh_idx].sh_offset;
+    unsigned long init_text_start = (unsigned long)elf_header + shdrs[init_text_sh_idx].sh_offset;
     res->code_start = exec_start;
     printf("Code start = %lx\n", res->code_start);
     unsigned long init_text_len = shdrs[init_text_sh_idx].sh_size;
@@ -242,19 +248,13 @@ static int load_elf_code_ko(const char *file_name, struct ElfCode *res) {
     printf("Code len = %lx\n", res->code_len);
     res->entry_offset = init_text_start - exec_start;
 
-    unsigned long loadable_start, loadable_end;
-    loadable_start = shdrs[exec_sh_idx].sh_addr + shdrs[exec_sh_idx].sh_offset;
-
     for (sh_idx = shnum - 1; sh_idx >= 0; sh_idx --) {
         if (shdrs[sh_idx].sh_type == SHT_PROGBITS && shdrs[sh_idx].sh_flags == (SHF_ALLOC | SHF_EXECINSTR)) {
             break;
         }
     }
-
     assert(sh_idx >= 0);
-    loadable_end = shdrs[sh_idx].sh_addr + shdrs[sh_idx].sh_offset + shdrs[sh_idx].sh_size;
-    assert(loadable_end > loadable_start);
-    res->loadable_size = loadable_end - loadable_start;
+    res->loadable_size = shdrs[sh_idx].sh_size;
     printf("Loadable size = %lu\n", res->loadable_size);
 
     return 0;
@@ -281,7 +281,7 @@ static dom_id_t create_dom_from_elf(const struct ElfCode *c_code,
         .entry_offset = c_code->entry_offset,
         .dom_id = -1
     };
-    
+
     if(s_code) {
         args.s_load_begin = s_code->code_start;
         args.s_load_len = s_code->code_len;
@@ -302,12 +302,12 @@ dom_id_t create_dom(const char *c_path, const char *s_path) {
         return -1;
     }
     struct ElfCode c_code;
-    
+
     dom_id_t res = -1;
     int retval = load_elf_code(c_path, &c_code);
     if(retval)
         return retval;
-    
+
     if(s_path) {
         struct ElfCode s_code;
         retval = load_elf_code(s_path, &s_code);
@@ -331,12 +331,12 @@ dom_id_t create_dom_ko(const char *c_path, const char *s_path) {
         return -1;
     }
     struct ElfCode c_code;
-    
+
     dom_id_t res = -1;
     int retval = load_elf_code(c_path, &c_code);
     if(retval)
         return retval;
-    
+
     if(s_path) {
         struct ElfCode s_code;
         retval = load_elf_code_ko(s_path, &s_code);

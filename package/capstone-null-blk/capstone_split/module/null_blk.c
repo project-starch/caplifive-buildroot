@@ -28,10 +28,21 @@ static DECLARE_FAULT_ATTR(null_init_hctx_attr);
 #define DEBUG_COUNTER_SHARED_TIMES 11
 #define DEBUG_COUNTER_BORROWED 12
 #define DEBUG_COUNTER_BORROWED_TIMES 13
+#ifdef CAPSTONE_DEBUG_ENABLE
 #define debug_counter_inc(counter_no, delta) __asm__ volatile(".insn r 0x5b, 0x1, 0x45, x0, %0, %1" :: "r"(counter_no), "r"(delta))
 #define debug_counter_tick(counter_no) debug_counter_inc((counter_no), 1)
 #define debug_shared_counter_inc(delta) debug_counter_inc(DEBUG_COUNTER_SHARED, delta); debug_counter_inc(DEBUG_COUNTER_SHARED_TIMES, 1)
 #define debug_borrowed_counter_inc(delta) debug_counter_inc(DEBUG_COUNTER_BORROWED, delta); debug_counter_inc(DEBUG_COUNTER_BORROWED_TIMES, 1)
+#else
+#define debug_counter_inc(counter_no, delta)
+#define debug_counter_tick(counter_no)
+#define debug_shared_counter_inc(delta)
+#define debug_borrowed_counter_inc(delta)
+#endif
+
+#ifndef __CAPSTONE_DEBUG_FLAG__
+#define __CAPSTONE_DEBUG_FLAG__
+#endif
 
 region_id_t metadata_region, ro_region, wo_region, nullb_dev_region;
 static char *metadata_region_base, *ro_region_base, *wo_region_base, *nullb_dev_region_base;
@@ -665,7 +676,7 @@ static struct nullb_device *null_alloc_dev(void)
 {
 	struct nullb_device *dev;
 	dev = kzalloc(sizeof(*dev), GFP_KERNEL);
-	
+
 	if (!dev)
 		return NULL;
 	INIT_RADIX_TREE(&dev->data, GFP_ATOMIC);
@@ -812,7 +823,7 @@ static void end_cmd(struct nullb_cmd *cmd)
 		sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_SHARE_ANNOTATED,
 			DOMAIN_NULLB_SPLIT, wo_region, CAPSTONE_ANNOTATION_PERM_OUT, CAPSTONE_ANNOTATION_REV_BORROWED, 0, 0);
 		debug_counter_tick(DEBUG_COUNTER_SWITCH_S);
-		
+
 		sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_DOM_CALL,
 				DOMAIN_NULLB_SPLIT, 0, 0, 0, 0, 0);
 		debug_counter_tick(DEBUG_COUNTER_SWITCH_S);
@@ -1349,10 +1360,10 @@ static int null_handle_bio(struct nullb_cmd *cmd)
 				ro_region, 0, 0, 0, 0, 0);
 		sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_REVOKE,
 				wo_region, 0, 0, 0, 0, 0);
-		
+
 		enum req_op bio_op_rv;
 		memcpy(&bio_op_rv, wo_region_base, sizeof(bio_op_rv));
-		
+
 		#ifdef __CAPSTONE_DEBUG_FLAG__
 			printk(KERN_INFO "exit domain: bio_op\n");
 		#endif
@@ -1467,7 +1478,7 @@ static void nullb_zero_read_cmd_buffer(struct nullb_cmd *cmd)
 	sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_SHARE_ANNOTATED,
 		DOMAIN_NULLB_SPLIT, wo_region, CAPSTONE_ANNOTATION_PERM_OUT, CAPSTONE_ANNOTATION_REV_BORROWED, 0, 0);
 	debug_counter_tick(DEBUG_COUNTER_SWITCH_S);
-	
+
 	sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_DOM_CALL,
 			DOMAIN_NULLB_SPLIT, 0, 0, 0, 0, 0);
 	debug_counter_tick(DEBUG_COUNTER_SWITCH_S);
@@ -1476,7 +1487,7 @@ static void nullb_zero_read_cmd_buffer(struct nullb_cmd *cmd)
 			ro_region, 0, 0, 0, 0, 0);
 	sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_REVOKE,
 			wo_region, 0, 0, 0, 0, 0);
-	
+
 	enum req_op bio_op_rv;
 	memcpy(&bio_op_rv, wo_region_base, sizeof(bio_op_rv));
 
@@ -1640,7 +1651,7 @@ static void null_submit_bio(struct bio *bio)
 	sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_SHARE_ANNOTATED,
 		DOMAIN_NULLB_SPLIT, wo_region, CAPSTONE_ANNOTATION_PERM_OUT, CAPSTONE_ANNOTATION_REV_BORROWED, 0, 0);
 	debug_counter_tick(DEBUG_COUNTER_SWITCH_S);
-	
+
 	sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_DOM_CALL,
 			DOMAIN_NULLB_SPLIT, 0, 0, 0, 0, 0);
 	debug_counter_tick(DEBUG_COUNTER_SWITCH_S);
@@ -1649,7 +1660,7 @@ static void null_submit_bio(struct bio *bio)
 			ro_region, 0, 0, 0, 0, 0);
 	sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_REVOKE,
 			wo_region, 0, 0, 0, 0, 0);
-	
+
 	struct nullb_queue *nq;
 	memcpy(&nq, wo_region_base, sizeof(struct nullb_queue *));
 
@@ -1677,7 +1688,7 @@ static void null_submit_bio(struct bio *bio)
 	sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_SHARE_ANNOTATED,
 		DOMAIN_NULLB_SPLIT, wo_region, CAPSTONE_ANNOTATION_PERM_OUT, CAPSTONE_ANNOTATION_REV_BORROWED, 0, 0);
 	debug_counter_tick(DEBUG_COUNTER_SWITCH_S);
-	
+
 	sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_DOM_CALL,
 			DOMAIN_NULLB_SPLIT, 0, 0, 0, 0, 0);
 	debug_counter_tick(DEBUG_COUNTER_SWITCH_S);
@@ -1686,7 +1697,7 @@ static void null_submit_bio(struct bio *bio)
 			ro_region, 0, 0, 0, 0, 0);
 	sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_REVOKE,
 			wo_region, 0, 0, 0, 0, 0);
-	
+
 	enum req_op bio_op_rv;
 	memcpy(&bio_op_rv, wo_region_base, sizeof(bio_op_rv));
 
@@ -2210,7 +2221,7 @@ static int null_add_dev(struct nullb_device *dev)
 #ifdef __NULLB_SPLIT_ENABLED__
 	#ifdef __CAPSTONE_DEBUG_FLAG__
 		printk(KERN_INFO "enter domain: null_validate_conf\n");
-	#endif	
+	#endif
 
 	unsigned long function_code = NULLBS_NULL_VALIDATE_CONF;
 	memcpy(metadata_region_base, &function_code, sizeof(function_code));
@@ -2233,7 +2244,7 @@ static int null_add_dev(struct nullb_device *dev)
 			nullb_dev_region, 0, 0, 0, 0, 0);
 	sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_REVOKE,
 			wo_region, 0, 0, 0, 0, 0);
-	
+
 	memcpy(&rv, wo_region_base, sizeof(int));
 	memcpy(dev, nullb_dev_region_base, sizeof(struct nullb_device));
 

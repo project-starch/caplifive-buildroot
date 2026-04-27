@@ -8,6 +8,7 @@
 #define __domentry __attribute__((domentry))
 #define __domreentry __attribute__((domreentry))
 #define __domreentryrestores __attribute__((domreentryrestores))
+#define C_PRINT(v) __asm__ (".insn r 0x0B, 0, 0x7c, x0, %0, x0" : : "r"(v))
 
 #define cap_cursor(cap) __capfield((cap), 2)
 
