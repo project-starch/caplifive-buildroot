@@ -22,12 +22,22 @@
 #define DEBUG_COUNTER_BORROWED_TRANSFERRED_TIMES 17
 #define DEBUG_COUNTER_MUTABLE_BORROWED_TRANSFERRED 18
 #define DEBUG_COUNTER_MUTABLE_BORROWED_TRANSFERRED_TIMES 19
+
+#ifdef CAPSTONE_DEBUG_ENABLE
 #define debug_counter_inc(counter_no, delta) __asm__ volatile(".insn r 0x5b, 0x1, 0x45, x0, %0, %1" :: "r"(counter_no), "r"(delta))
 #define debug_shared_counter_inc(delta) debug_counter_inc(DEBUG_COUNTER_SHARED, delta); debug_counter_inc(DEBUG_COUNTER_SHARED_TIMES, 1)
 #define debug_borrowed_counter_inc(delta) debug_counter_inc(DEBUG_COUNTER_BORROWED, delta); debug_counter_inc(DEBUG_COUNTER_BORROWED_TIMES, 1)
 #define debug_double_transferred_counter_inc(delta) debug_counter_inc(DEBUG_COUNTER_DOUBLE_TRANSFERRED, delta); debug_counter_inc(DEBUG_COUNTER_DOUBLE_TRANSFERRED_TIMES, 1)
 #define debug_borrowed_transferred_counter_inc(delta) debug_counter_inc(DEBUG_COUNTER_BORROWED_TRANSFERRED, delta); debug_counter_inc(DEBUG_COUNTER_BORROWED_TRANSFERRED_TIMES, 1)
 #define debug_mutable_borrowed_transferred_counter_inc(delta) debug_counter_inc(DEBUG_COUNTER_MUTABLE_BORROWED_TRANSFERRED, delta); debug_counter_inc(DEBUG_COUNTER_MUTABLE_BORROWED_TRANSFERRED_TIMES, 1)
+#else
+#define debug_counter_inc(counter_no, delta)
+#define debug_shared_counter_inc(delta)
+#define debug_borrowed_counter_inc(delta)
+#define debug_double_transferred_counter_inc(delta)
+#define debug_borrowed_transferred_counter_inc(delta)
+#define debug_mutable_borrowed_transferred_counter_inc(delta)
+#endif
 
 #define CAPSTONE_ANNOTATION_PERM_IN 0x0
 #define CAPSTONE_ANNOTATION_PERM_INOUT 0x1
@@ -56,6 +66,10 @@
 #define CONNECTION_NUM 3
 #define CGI_ELF_REGION_SIZE (4096 * 64)
 
+#ifndef __CAPSTONE_DEBUG_FLAG__
+#define __CAPSTONE_DEBUG_FLAG__
+#endif
+
 #ifdef __CAPSTONE_DEBUG_FLAG__
     #define print_nobuf(...) do { printf(__VA_ARGS__); fflush(stdout); } while(0)
 #else
@@ -77,9 +91,9 @@ typedef struct {
     int d[QUEUE_SIZE];
     int front;
     int back;
-    sem_t mutex; 
-    sem_t slots; 
-    sem_t items; 
+    sem_t mutex;
+    sem_t slots;
+    sem_t items;
 } queue;
 
 queue* queueCreate() {
@@ -126,10 +140,10 @@ void* workerThread(void *arg) {
     unsigned long html_fd_status = HTML_FD_UNDEFINED;
     memcpy(metadata_region_base + METADATA_STATUS_OFFSET, &html_fd_status, sizeof(html_fd_status));
     debug_shared_counter_inc(sizeof(unsigned long));
-    
+
     shared_region_annotated(dom_id, socket_fd_region, CAPSTONE_ANNOTATION_PERM_IN, CAPSTONE_ANNOTATION_REV_BORROWED);
     shared_region_annotated(dom_id, response_region, CAPSTONE_ANNOTATION_PERM_OUT, CAPSTONE_ANNOTATION_REV_BORROWED);
-    
+
     print_nobuf("enter backend: for preprocessing\n");
     call_dom(dom_id);
     print_nobuf("exit backend: return from preprocessing\n");
@@ -139,7 +153,7 @@ void* workerThread(void *arg) {
     debug_shared_counter_inc(sizeof(unsigned long));
     memcpy(&html_fd_status, metadata_region_base + METADATA_STATUS_OFFSET, sizeof(html_fd_status));
     debug_shared_counter_inc(sizeof(unsigned long));
-    
+
     if (html_fd_status == HTML_FD_200RESPONSE) {
         print_nobuf("Backend request for 200 response\n");
         char* file_path = malloc(html_fd_len);
@@ -179,7 +193,7 @@ void* workerThread(void *arg) {
 
             revoke_region(html_fd_region);
             revoke_region(response_region);
-            
+
             // sync socket_fd_region to socket fd
             unsigned long long socket_fd_region_len;
             memcpy(&socket_fd_region_len, metadata_region_base + METADATA_SOCKET_LEN_OFFSET, sizeof(socket_fd_region_len));
@@ -231,7 +245,7 @@ void* workerThread(void *arg) {
             close(fd);
         }
     }
-    
+
     if (html_fd_status == HTML_FD_CGI) {
         print_nobuf("POST request is handled by CGI.\n");
 
@@ -274,16 +288,16 @@ int main() {
 
     response_region = create_region(4096);
     print_nobuf("Shared region created with ID %lu\n", response_region);
-    
+
     html_fd_region = create_region(4096);
     print_nobuf("Shared region created with ID %lu\n", html_fd_region);
 
     region_id_t metadata_region = create_region(4096);
     print_nobuf("Shared region created with ID %lu\n", metadata_region);
-    
+
     region_id_t cgi_success_region = create_region(CGI_ELF_REGION_SIZE);
     print_nobuf("Shared region created with ID %lu\n", cgi_success_region);
-    
+
     region_id_t cgi_fail_region = create_region(CGI_ELF_REGION_SIZE);
     print_nobuf("Shared region created with ID %lu\n", cgi_fail_region);
 
@@ -292,7 +306,7 @@ int main() {
     html_fd_region_base = map_region(html_fd_region, 4096);
     metadata_region_base = map_region(metadata_region, 4096);
 
-    /* cgi content set up */ 
+    /* cgi content set up */
     char* cgi_success_region_base = map_region(cgi_success_region, CGI_ELF_REGION_SIZE);
 
     char cgi_success_path[] = "/nested/capstone_split/cgi/cgi_register_success.dom";

@@ -10,10 +10,10 @@ DOMS_SMODE_TARGETS = $(patsubst %.smode.c,%.smode,$(DOMS_SMODE_SRC))
 all: $(DOMS_TARGETS) $(DOMS_SMODE_TARGETS)
 
 $(DOMS_SMODE_TARGETS):%:%.c
-	$(CC) -static -nostdlib -fPIC -o "$@" "$^"
+	$(CC) -static -nostdlib -fPIC $(EXTRA_CFLAGS) -o "$@" "$^"
 
 $(DOMS_TARGETS):%:%.S
-	$(CC) -static -nostdlib -fPIC -o "$@" "$^"
+	$(CC) -static -nostdlib -fPIC $(EXTRA_CFLAGS) -o "$@" "$^"
 
 $(DOMS_S):%.S:%.c
 	cd "$(CAPSTONE_CC_PATH)" && cargo run -- --abi capstone "$^" > "$@"

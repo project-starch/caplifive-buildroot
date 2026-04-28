@@ -2,6 +2,8 @@ CAPSTONE_NESTED_ENCLAVE_VERSION = 1.0
 CAPSTONE_NESTED_ENCLAVE_SITE = $(BR2_EXTERNAL_CAPSTONE_PATH)/package/capstone-nested-enclave
 CAPSTONE_NESTED_ENCLAVE_SITE_METHOD = local
 
+EXTRA_CFLAGS += -march=rv64g -mabi=lp64d
+
 define CAPSTONE_NESTED_ENCLAVE_BUILD_CMDS
 	$(MAKE) -C '$(@D)'/baseline CC='$(TARGET_CC)' LD='$(TARGET_LD)'
 	$(MAKE) -C '$(@D)'/capstone_split/cgi CC='$(TARGET_CC)' LD='$(TARGET_LD)'

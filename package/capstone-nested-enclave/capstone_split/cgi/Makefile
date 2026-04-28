@@ -7,7 +7,7 @@ DOMS_TARGETS = $(patsubst %.dom.c,%.dom,$(DOMS_SRC))
 all: $(DOMS_TARGETS)
 
 $(DOMS_TARGETS):%:%.S
-	$(CC) -static -nostdlib -fPIC -o "$@" "$^"
+	$(CC) -static -nostdlib -fPIC $(EXTRA_CFLAGS) -o "$@" "$^"
 
 $(DOMS_S):%.S:%.c
 	cd "$(CAPSTONE_CC_PATH)" && cargo run -- --abi capstone "$^" > "$@"

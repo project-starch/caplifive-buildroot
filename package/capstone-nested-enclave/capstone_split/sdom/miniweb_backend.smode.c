@@ -11,6 +11,8 @@
 #define DEBUG_COUNTER_BORROWED_TRANSFERRED_TIMES 17
 #define DEBUG_COUNTER_MUTABLE_BORROWED_TRANSFERRED 18
 #define DEBUG_COUNTER_MUTABLE_BORROWED_TRANSFERRED_TIMES 19
+
+#ifdef CAPSTONE_DEBUG_ENABLE
 #define debug_counter_inc(counter_no, delta) __asm__ volatile(".insn r 0x5b, 0x1, 0x45, x0, %0, %1" :: "r"(counter_no), "r"(delta))
 #define debug_counter_tick(counter_no) debug_counter_inc((counter_no), 1)
 #define debug_shared_counter_inc(delta) debug_counter_inc(DEBUG_COUNTER_SHARED, delta); debug_counter_inc(DEBUG_COUNTER_SHARED_TIMES, 1)
@@ -18,8 +20,18 @@
 #define debug_double_transferred_counter_inc(delta) debug_counter_inc(DEBUG_COUNTER_DOUBLE_TRANSFERRED, delta); debug_counter_inc(DEBUG_COUNTER_DOUBLE_TRANSFERRED_TIMES, 1)
 #define debug_borrowed_transferred_counter_inc(delta) debug_counter_inc(DEBUG_COUNTER_BORROWED_TRANSFERRED, delta); debug_counter_inc(DEBUG_COUNTER_BORROWED_TRANSFERRED_TIMES, 1)
 #define debug_mutable_borrowed_transferred_counter_inc(delta) debug_counter_inc(DEBUG_COUNTER_MUTABLE_BORROWED_TRANSFERRED, delta); debug_counter_inc(DEBUG_COUNTER_MUTABLE_BORROWED_TRANSFERRED_TIMES, 1)
-
 #define C_PRINT(v) __asm__ volatile(".insn r 0x5b, 0x1, 0x43, x0, %0, x0" :: "r"(v))
+#else
+#define debug_counter_inc(counter_no, delta)
+#define debug_counter_tick(counter_no)
+#define debug_shared_counter_inc(delta)
+#define debug_borrowed_counter_inc(delta)
+#define debug_double_transferred_counter_inc(delta)
+#define debug_borrowed_transferred_counter_inc(delta)
+#define debug_mutable_borrowed_transferred_counter_inc(delta)
+#define C_PRINT(v)
+#endif
+
 #define STACK_SIZE (4096 * 2)
 
 #define HTML_REGION_POP_NUM 3
@@ -90,7 +102,7 @@ static dom_id_t create_dom_from_region(char* elf_region_base) {
 		/* tot size = */ tot_len,
 		/* entry offset = */ entry_offset,
 		0, 0);
-	
+
 	return (dom_id_t)sbi_res.value;
 }
 
@@ -160,7 +172,7 @@ static void request_handle_cgi(unsigned long register_success) {
 		sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_SHARE_ANNOTATED,
 			cgi_fail_dom_id, response_region, CAPSTONE_ANNOTATION_PERM_OUT, CAPSTONE_ANNOTATION_REV_TRANSFERRED, 0, 0);
 		debug_counter_tick(DEBUG_COUNTER_SWITCH_S);
-		
+
 		sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_DOM_CALL,
 			cgi_fail_dom_id, 0, 0, 0, 0, 0);
 		debug_counter_tick(DEBUG_COUNTER_SWITCH_S);
@@ -184,7 +196,7 @@ static void request_reprocessing(void) {
 	read_line_from_socket(lineBuffer, 256);
 	char method[16];
 	char url[128];
-	
+
 	// get method and url from lineBuffer
 	// POST /cgi/register HTTP/1.1
 	int i = 0;
@@ -290,7 +302,7 @@ void ulong_to_str(char *dest, unsigned long num) {
 
 unsigned long strcat_four_strings(char *dest, const char *str1, const char *str2, const char *str3, const char *str4) {
     unsigned long length = 0;
-	
+
 	while (*str1 != '\0') {
         *dest = *str1;
         dest++;

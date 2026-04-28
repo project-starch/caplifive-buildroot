@@ -34,9 +34,9 @@ typedef struct {
     int d[QUEUE_SIZE];
     int front;
     int back;
-    sem_t mutex; 
-    sem_t slots; 
-    sem_t items; 
+    sem_t mutex;
+    sem_t slots;
+    sem_t items;
 } queue;
 
 queue* queueCreate() {
@@ -91,11 +91,11 @@ void* workerThread(void *arg) {
     ioctl(dev_fd, 0, 0);
     print_nobuf("exit backend: return from preprocessing\n");
 
-    
+
     unsigned long html_fd_len; // also server as the path length
     memcpy(&html_fd_len, html_fd_region_base + sizeof(html_fd_status), sizeof(html_fd_len));
     memcpy(&html_fd_status, html_fd_region_base, sizeof(html_fd_status));
-    
+
     if (html_fd_status == HTML_FD_200RESPONSE) {
         print_nobuf("Backend request for 200 response\n");
         char* file_path = malloc(html_fd_len);
@@ -160,7 +160,7 @@ void* workerThread(void *arg) {
             close(fd);
         }
     }
-    
+
     if (html_fd_status == HTML_FD_CGI) {
         print_nobuf("POST request is handled by CGI.\n");
 
@@ -187,12 +187,16 @@ int main() {
         return -1;
     }
 
+    print_nobuf("Device opened successfully.\n");
+
     char *shared_kernel_memory = mmap(NULL, SHARED_MEMORY_SIZE, PROT_READ | PROT_WRITE, MAP_SHARED, dev_fd, 0);
     if (shared_kernel_memory == MAP_FAILED) {
         perror("Failed to map memory");
         close(dev_fd);
         return -1;
     }
+
+    print_nobuf("Memory mapped successfully.\n");
 
     socket_fd_region_base = shared_kernel_memory;
     html_fd_region_base = shared_kernel_memory + HTML_FD_OFFSET;
