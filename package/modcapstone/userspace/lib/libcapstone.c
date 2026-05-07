@@ -12,6 +12,10 @@
 #include <fcntl.h>
 #include "libcapstone.h"
 
+#ifndef EM_CAPSTONE
+#define EM_CAPSTONE 259
+#endif
+
 #define MAX_REGION_N 64
 #define MAP_SIZE_LIMIT 0x10000000
 #define DEBUG_COUNTER_SWITCH_U 0
@@ -86,8 +90,8 @@ static int load_elf_code(const char *file_name, struct ElfCode *res) {
         goto clean_up_mmap;
     }
 
-    if (elf_header->e_machine != EM_RISCV) {
-        fprintf(stderr, "Not for RISC-V.\n");
+    if (elf_header->e_machine != EM_RISCV && elf_header->e_machine != EM_CAPSTONE) {
+        fprintf(stderr, "Not for RISC-V/Capstone.\n");
         retval = 1;
         goto clean_up_mmap;
     }
@@ -188,8 +192,8 @@ static int load_elf_code_ko(const char *file_name, struct ElfCode *res) {
         goto clean_up_mmap;
     }
 
-    if (elf_header->e_machine != EM_RISCV) {
-        fprintf(stderr, "Not for RISC-V.\n");
+    if (elf_header->e_machine != EM_RISCV && elf_header->e_machine != EM_CAPSTONE) {
+        fprintf(stderr, "Not for RISC-V/Capstone.\n");
         retval = 1;
         goto clean_up_mmap;
     }
