@@ -62,20 +62,21 @@
 void* regions[MAX_REGION_N];
 unsigned region_n = 0;
 
-unsigned* response_region_ptr;
+__linear unsigned* response_region_ptr;
 unsigned response_size;
 unsigned ptr_outer_offset;
 unsigned ptr_inner_offset;
 
 void putchar_to_socket(unsigned ch) {
+    __linear unsigned* response_region = response_region_ptr;
     // zero 8 bytes at the beginning
     if (ptr_inner_offset == 0) {
-        response_region_ptr[ptr_outer_offset] = 0;
+        response_region[ptr_outer_offset] = 0;
     }
 
-    unsigned current_buffer = response_region_ptr[ptr_outer_offset];
+    unsigned current_buffer = response_region[ptr_outer_offset];
     unsigned next_buffer = current_buffer | (ch << (ptr_inner_offset * 8));
-    response_region_ptr[ptr_outer_offset] = next_buffer;
+    response_region[ptr_outer_offset] = next_buffer;
     ptr_inner_offset += 1;
     response_size += 1;
 
@@ -83,14 +84,16 @@ void putchar_to_socket(unsigned ch) {
         ptr_inner_offset = 0;
         ptr_outer_offset += 1;
     }
+
+    response_region_ptr = response_region;
 }
 
 void register_fail(void) {
-    void* metadata_region = regions[0];
-    void* socket_region = regions[1];
-    void* response_region = regions[2];
+    __linear void* metadata_region = regions[0];
+    __linear void* socket_region = regions[1];
+    __linear void* response_region = regions[2];
 
-    unsigned* socket_region_ptr = (unsigned *)socket_region;
+    __linear unsigned* socket_region_ptr = (unsigned *)socket_region;
     response_region_ptr = (unsigned *)response_region;
     response_size = 0;
 
@@ -332,11 +335,14 @@ void register_fail(void) {
     putchar_to_socket('\n');
 
     /* set the socket packet size */
-    unsigned* shared_region = (unsigned *)metadata_region;
+    __linear unsigned* shared_region = (unsigned *)metadata_region;
     shared_region[METADATA_SOCKET_LEN_OFFSET_UL] = response_size;
 
     debug_mutable_borrowed_transferred_counter_inc(response_size);
     debug_shared_counter_inc(SIZE_OF_ULL);
+
+    regions[0] = shared_region;
+    regions[1] = socket_region_ptr;
 }
 
 void dpi_call(void) {
@@ -369,7 +375,7 @@ unsigned handle_dpi(unsigned func, void *arg) {
     return handled;
 }
 
-__domentry __domreentry void cgi_fail_entry(__domret void *ra, unsigned func, unsigned *buf) {
+__domentry __domreentry void cgi_fail_entry(__domret void *ra, unsigned func, __linear unsigned *buf) {
     __domret void *caller_dom = ra;
 
     int handled = handle_dpi(func, buf);

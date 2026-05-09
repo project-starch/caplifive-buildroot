@@ -14,7 +14,7 @@
 
 unsigned initialised = 0;
 
-__domentry __domreentryrestores void entry(__domret void *ra, unsigned func, unsigned *buf) {
+__domentry __domreentryrestores void entry(__domret void *ra, unsigned func, __linear unsigned *buf) {
     int i;
     int handled;
     unsigned s_entry_addr;

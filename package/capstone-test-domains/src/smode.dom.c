@@ -3,7 +3,7 @@
  * with a function code.
  * The initial-S function initialises the S mode using code provided through a
  * capability that is passed in as an argument.
- * 
+ *
 */
 
 
@@ -24,7 +24,7 @@
 unsigned initialised;
 
 __attribute__((naked)) static void trap_entry() {
-    __asm__ volatile(".insn r 0x5b, 0x1, 0x43, x0, a0, x0");
+    // __asm__ volatile(".insn r 0x5b, 0x1, 0x43, x0, a0, x0");
     __asm__ volatile("ccsrrw(sp, cscratch, sp)");
     __asm__ volatile("stc(t0, sp, -16)");
     __asm__ volatile("ccsrrw(t0, cepc, x0)");
@@ -35,7 +35,7 @@ __attribute__((naked)) static void trap_entry() {
     __asm__ volatile("mret");
 }
 
-__domentry __domreentryrestores void call_handler(__domret void* ra, unsigned *buf) {
+__domentry __domreentryrestores void call_handler(__domret void* ra, __linear unsigned *buf) {
     if (initialised) {
         *buf = 1;
     } else {

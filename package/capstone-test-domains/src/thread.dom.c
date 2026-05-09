@@ -18,6 +18,6 @@
 
 
 __domentry void run(__domret void *ra) {
-    C_PRINT(0x123456);
+    // C_PRINT(0x123456);
     while(1);
 }
