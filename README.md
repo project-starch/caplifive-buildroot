@@ -48,13 +48,30 @@ To build the Docker image, follow these steps:
 
 ### ⚡ **Quick Notes:**
 ---
+Keep `build/local.mk` present for local development. That file is what points
+Buildroot at the local Capstone-enabled override trees:
+
+```makefile
+LINUX_OVERRIDE_SRCDIR = $(BR2_EXTERNAL_CAPSTONE_PATH)/components/linux
+OPENSBI_OVERRIDE_SRCDIR = $(BR2_EXTERNAL_CAPSTONE_PATH)/components/opensbi
+```
+
+If `build/local.mk` disappears, the local image can silently fall back to a stock
+OpenSBI path and Capstone SBI calls may fail in confusing ways.
+
 If you have made changes to OpenSBI, sync and rebuild with
 
-**Please manually delete `sbi_capstone_dom.c.S` and `capstone_int_handler.c.S` in `components/opensbi/lib/sbi` before rebuild.**
+The validated local rebuild path is:
 
 ```sh
 make build CAPSTONE_CC_PATH=<path-to-capstone-c-compiler-directory> A=opensbi-rebuild
 ```
+
+After a successful rebuild, the generated wrapper assembly should exist again in
+`components/opensbi/lib/sbi/`, including:
+
+- `sbi_capstone_dom.c.S`
+- `capstone_int_handler.c.S`
 
 Similarly, to sync changes to the Linux kernel and rebuild, use
 
@@ -67,6 +84,10 @@ For the kernel module or the test program,
 ```sh
 make build CAPSTONE_CC_PATH=<path-to-capstone-c-compiler-directory> A=modcapstone-rebuild
 ```
+
+If you changed the active kernel/OpenSBI path and a packaged kernel module later
+fails with `invalid module format`, rebuild the affected package so its
+`vermagic` matches the current kernel before re-testing it.
 
 You can place the files you want to include in the rootfs in `./overlay`.
 
