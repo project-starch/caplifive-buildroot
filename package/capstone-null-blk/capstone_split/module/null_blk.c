@@ -2422,6 +2422,8 @@ static void null_destroy_dev(struct nullb *nullb)
 static region_id_t create_region(unsigned long len) {
 	unsigned long n_pages = (len - 1) / PAGE_SIZE + 1;
 	unsigned long n_pages_log2 = n_pages == 1 ? 0 : (ilog2(n_pages - 1) + 1);
+	struct sbiret sbi_res;
+	phys_addr_t paddr;
 
 	unsigned long vaddr = (unsigned long)__get_free_pages(GFP_HIGHUSER, n_pages_log2);
 	if(!vaddr) {
@@ -2429,8 +2431,15 @@ static region_id_t create_region(unsigned long len) {
 		return -1;
 	}
 
-	struct sbiret sbi_res = sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_CREATE,
-				__pa(vaddr), len, 0, 0, 0, 0);
+	paddr = __pa(vaddr);
+	sbi_res = sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_CREATE,
+				paddr, len, 0, 0, 0, 0);
+	if (sbi_res.error) {
+		free_pages(vaddr, n_pages_log2);
+		pr_err("Failed to create shared region: error=%ld len=%lu pa=%pa\n",
+			sbi_res.error, len, &paddr);
+		return -1;
+	}
 	return sbi_res.value;
 }
 
@@ -2439,6 +2448,11 @@ static char* region_id_to_base(region_id_t region_id) {
 		/* region_id = */ region_id,
 		/* field = */ CAPSTONE_REGION_FIELD_BASE,
 		0, 0, 0, 0);
+	if (sbi_res.error) {
+		pr_err("Failed to query shared region base: region=%lu error=%ld\n",
+			region_id, sbi_res.error);
+		return NULL;
+	}
 	return __va(sbi_res.value);
 }
 
@@ -2450,35 +2464,51 @@ static int __init null_init(void)
 
 	/* initialize shared region pointers*/
 	metadata_region = create_region(4096);
+	if (metadata_region == (region_id_t)-1)
+		return -EINVAL;
 	#ifdef __CAPSTONE_DEBUG_FLAG__
 		printk("Shared region created with ID %lu\n", metadata_region);
 	#endif
-    ro_region = create_region(4096);
-    #ifdef __CAPSTONE_DEBUG_FLAG__
+        ro_region = create_region(4096);
+        if (ro_region == (region_id_t)-1)
+                return -EINVAL;
+        #ifdef __CAPSTONE_DEBUG_FLAG__
 		printk("Shared region created with ID %lu\n", ro_region);
 	#endif
-    wo_region = create_region(4096);
-    #ifdef __CAPSTONE_DEBUG_FLAG__
+        wo_region = create_region(4096);
+	if (wo_region == (region_id_t)-1)
+		return -EINVAL;
+        #ifdef __CAPSTONE_DEBUG_FLAG__
 		printk("Shared region created with ID %lu\n", wo_region);
 	#endif
-    nullb_dev_region = create_region(4096);
-    #ifdef __CAPSTONE_DEBUG_FLAG__
+        nullb_dev_region = create_region(4096);
+	if (nullb_dev_region == (region_id_t)-1)
+		return -EINVAL;
+        #ifdef __CAPSTONE_DEBUG_FLAG__
 		printk("Shared region created with ID %lu\n", nullb_dev_region);
 	#endif
 
 	metadata_region_base = region_id_to_base(metadata_region);
+	if (!metadata_region_base)
+		return -EINVAL;
 	#ifdef __CAPSTONE_DEBUG_FLAG__
 		printk("metadata_region_base = %p\n", metadata_region_base);
 	#endif
 	ro_region_base = region_id_to_base(ro_region);
+	if (!ro_region_base)
+		return -EINVAL;
 	#ifdef __CAPSTONE_DEBUG_FLAG__
 		printk("ro_region_base = %p\n", ro_region_base);
 	#endif
 	wo_region_base = region_id_to_base(wo_region);
+	if (!wo_region_base)
+		return -EINVAL;
 	#ifdef __CAPSTONE_DEBUG_FLAG__
 		printk("wo_region_base = %p\n", wo_region_base);
 	#endif
 	nullb_dev_region_base = region_id_to_base(nullb_dev_region);
+	if (!nullb_dev_region_base)
+		return -EINVAL;
 	#ifdef __CAPSTONE_DEBUG_FLAG__
 		printk("nullb_dev_region_base = %p\n", nullb_dev_region_base);
 	#endif

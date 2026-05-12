@@ -103,6 +103,14 @@ static void ioctl_create_dom(struct ioctl_dom_create_args* __user args) {
 		/* tot size = */ (1 << dom_pages_log2) * PAGE_SIZE, 
 		/* entry offset = */ m_args.entry_offset,
 		0, 0);
+	if (sbi_res.error) {
+		pr_err("DOM_CREATE failed: paddr=%lx code_len=%lu tot_size=%lx entry_offset=%lx error=%ld value=%ld\n",
+			dom_paddr, m_args.code_len, (1 << dom_pages_log2) * PAGE_SIZE,
+			m_args.entry_offset, sbi_res.error, sbi_res.value);
+		m_args.dom_id = (dom_id_t)-1;
+		copy_to_user(args, &m_args, sizeof(struct ioctl_dom_create_args));
+		return;
+	}
 	m_args.dom_id = (dom_id_t)sbi_res.value;
 	copy_to_user(args, &m_args, sizeof(struct ioctl_dom_create_args));
 
@@ -126,6 +134,12 @@ static void ioctl_create_dom(struct ioctl_dom_create_args* __user args) {
 		sbi_res = sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_DOM_CALL_WITH_CAP,
 			m_args.dom_id, __pa(dom_s_load_vaddr), m_args.s_size,
 			__pa(dom_s_load_vaddr) + m_args.s_entry_offset, 0, 0);
+		if (sbi_res.error || sbi_res.value) {
+			pr_err("DOM_CALL_WITH_CAP failed: dom_id=%lu s_paddr=%lx s_size=%lu s_entry=%lx error=%ld value=%ld\n",
+				m_args.dom_id, __pa(dom_s_load_vaddr), m_args.s_size,
+				__pa(dom_s_load_vaddr) + m_args.s_entry_offset, sbi_res.error,
+				sbi_res.value);
+		}
 
 		if (sbi_res.value) {
 			pr_alert("Failed to initialise S mode\n");
@@ -166,6 +180,14 @@ static void ioctl_create_region(struct ioctl_region_create_args* __user args) {
 
 	struct sbiret sbi_res = sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_CREATE,
 				__pa(vaddr), m_args.len, 0, 0, 0, 0);
+	if (sbi_res.error) {
+		free_pages(vaddr, n_pages_log2);
+		pr_err("REGION_CREATE failed: len=%lu vaddr=%lx paddr=%lx error=%ld value=%ld\n",
+			m_args.len, vaddr, __pa(vaddr), sbi_res.error, sbi_res.value);
+		m_args.region_id = (region_id_t)-1;
+		copy_to_user(args, &m_args, sizeof(struct ioctl_region_create_args));
+		return;
+	}
 	m_args.region_id = sbi_res.value;
 
 	if(region_n > m_args.region_id) {
