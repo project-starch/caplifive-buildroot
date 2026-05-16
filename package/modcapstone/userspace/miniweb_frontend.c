@@ -39,6 +39,8 @@
 #define debug_mutable_borrowed_transferred_counter_inc(delta)
 #endif
 
+#define C_PRINT(v) __asm__ volatile("csrw 0x800, %0" :: "r"(v))
+
 #define CAPSTONE_ANNOTATION_PERM_IN 0x0
 #define CAPSTONE_ANNOTATION_PERM_INOUT 0x1
 #define CAPSTONE_ANNOTATION_PERM_OUT 0x2
@@ -142,7 +144,8 @@ void* workerThread(void *arg) {
     debug_shared_counter_inc(sizeof(unsigned long));
 
     shared_region_annotated(dom_id, socket_fd_region, CAPSTONE_ANNOTATION_PERM_IN, CAPSTONE_ANNOTATION_REV_BORROWED);
-    shared_region_annotated(dom_id, response_region, CAPSTONE_ANNOTATION_PERM_OUT, CAPSTONE_ANNOTATION_REV_BORROWED);
+    // TODO: see if we can strengthen this
+    shared_region_annotated(dom_id, response_region, CAPSTONE_ANNOTATION_PERM_INOUT, CAPSTONE_ANNOTATION_REV_BORROWED);
 
     print_nobuf("enter backend: for preprocessing\n");
     call_dom(dom_id);
