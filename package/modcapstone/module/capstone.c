@@ -112,6 +112,7 @@ static void ioctl_create_dom(struct ioctl_dom_create_args* __user args) {
 
 		unsigned long dom_s_load_pages = (m_args.s_size - 1) / PAGE_SIZE + 1;
 		unsigned long dom_s_load_pages_log2 = dom_s_load_pages == 1 ? 0 : (ilog2(dom_s_load_pages - 1) + 1);
+		unsigned long dom_s_load_actual_size = (1 << dom_s_load_pages_log2) * PAGE_SIZE;
 		unsigned long dom_s_load_vaddr = (unsigned long)__get_free_pages(GFP_HIGHUSER | __GFP_ZERO, dom_s_load_pages_log2);
 		if(!dom_s_load_pages) {
 			pr_alert("Failed to allocate S-mode code region for domain.\n");
@@ -121,10 +122,10 @@ static void ioctl_create_dom(struct ioctl_dom_create_args* __user args) {
 		pr_info("Domain S-mode region vaddr = %lx, paddr = %lx\n", dom_s_load_vaddr, __pa(dom_s_load_vaddr));
 
 		copy_from_user((void*)dom_s_load_vaddr, m_args.s_load_begin, m_args.s_load_len);
-		memset((void*)(dom_s_load_vaddr + m_args.s_load_len), 0, m_args.s_size - m_args.s_load_len);
+		memset((void*)(dom_s_load_vaddr + m_args.s_load_len), 0, dom_s_load_actual_size - m_args.s_load_len);
 
 		sbi_res = sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_DOM_CALL_WITH_CAP,
-			m_args.dom_id, __pa(dom_s_load_vaddr), m_args.s_size,
+			m_args.dom_id, __pa(dom_s_load_vaddr), dom_s_load_actual_size,
 			__pa(dom_s_load_vaddr) + m_args.s_entry_offset, 0, 0);
 
 		if (sbi_res.value) {

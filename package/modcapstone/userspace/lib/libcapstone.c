@@ -339,7 +339,8 @@ dom_id_t create_dom_ko(const char *c_path, const char *s_path) {
 
     if(s_path) {
         struct ElfCode s_code;
-        retval = load_elf_code_ko(s_path, &s_code);
+        // retval = load_elf_code_ko(s_path, &s_code);
+        retval = load_elf_code(s_path, &s_code);
         if(retval)
             goto c_code_cleanup;
         res = create_dom_from_elf(&c_code, &s_code);
