@@ -25,6 +25,7 @@
 struct ElfCode {
     int fd;
     void *map_base;
+    size_t map_len;
     unsigned long code_start, code_len;
     unsigned long loadable_size;
     off_t size, entry_offset;
@@ -104,49 +105,98 @@ static int load_elf_code(const char *file_name, struct ElfCode *res) {
     printf("Found %lu segments\n", phnum);
 
     int ph_idx;
+    int exec_ph_idx = -1;
+    int first_load_ph_idx = -1;
+    unsigned long loadable_start = 0;
+    unsigned long loadable_end = 0;
+
     for (ph_idx = 0; ph_idx < phnum; ph_idx ++) {
-        if (phdrs[ph_idx].p_type == PT_LOAD && (phdrs[ph_idx].p_flags & PF_X)) {
-            break;
+        if (phdrs[ph_idx].p_type != PT_LOAD) {
+            continue;
+        }
+
+        if (first_load_ph_idx == -1 || phdrs[ph_idx].p_vaddr < phdrs[first_load_ph_idx].p_vaddr) {
+            first_load_ph_idx = ph_idx;
+            loadable_start = phdrs[ph_idx].p_vaddr;
+        }
+
+        if (exec_ph_idx == -1 && (phdrs[ph_idx].p_flags & PF_X)) {
+            exec_ph_idx = ph_idx;
+        }
+
+        unsigned long seg_end = phdrs[ph_idx].p_vaddr + phdrs[ph_idx].p_memsz;
+        if (seg_end > loadable_end) {
+            loadable_end = seg_end;
         }
     }
-    if (ph_idx >= phnum) {
+
+    if (exec_ph_idx == -1) {
         fprintf(stderr, "No loadable executable segment found.\n");
         retval = 1;
         goto clean_up_mmap;
     }
     printf("Loadable executable segment found.\n");
     printf("Entry address = %lx\n", elf_header->e_entry);
-    printf("Virtual address = %lx\n", phdrs[ph_idx].p_vaddr);
-    printf("File offset = %lx\n", phdrs[ph_idx].p_offset);
-    printf("Segment size = %lx\n", phdrs[ph_idx].p_filesz);
+    printf("Virtual address = %lx\n", phdrs[exec_ph_idx].p_vaddr);
+    printf("File offset = %lx\n", phdrs[exec_ph_idx].p_offset);
+    printf("Segment size = %lx\n", phdrs[exec_ph_idx].p_filesz);
 
-    if (elf_header->e_entry < phdrs[ph_idx].p_vaddr ||
-        elf_header->e_entry >= (phdrs[ph_idx].p_vaddr + phdrs[ph_idx].p_filesz))
+    if (first_load_ph_idx == -1 || loadable_end <= loadable_start) {
+        fprintf(stderr, "No PT_LOAD image to load.\n");
+        retval = 1;
+        goto clean_up_mmap;
+    }
+
+    if (elf_header->e_entry < phdrs[exec_ph_idx].p_vaddr ||
+        elf_header->e_entry >= (phdrs[exec_ph_idx].p_vaddr + phdrs[exec_ph_idx].p_filesz))
     {
         fprintf(stderr, "Entry not within the loaded segment!\n");
         retval = 1;
         goto clean_up_mmap;
     }
 
-    res->fd = elf_fd;
-    res->map_base = (void*)elf_header;
-    res->size = file_stat.st_size;
-    res->code_start = (unsigned long)elf_header + phdrs[ph_idx].p_offset;
-    res->code_len = phdrs[ph_idx].p_filesz;
-    res->entry_offset = elf_header->e_entry - phdrs[ph_idx].p_vaddr;
-
-    unsigned long loadable_start, loadable_end;
-    loadable_start = phdrs[ph_idx].p_vaddr;
-
-    for (ph_idx = phnum - 1; ph_idx >= 0; ph_idx --) {
-        if (phdrs[ph_idx].p_type == PT_LOAD) {
-            break;
-        }
+    unsigned long image_size = loadable_end - loadable_start;
+    unsigned long entry_addr = elf_header->e_entry;
+    unsigned char *image_base = mmap(NULL, image_size, PROT_READ | PROT_WRITE,
+        MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    if (image_base == MAP_FAILED) {
+        fprintf(stderr, "Failed to allocate a PT_LOAD image buffer.\n");
+        retval = 1;
+        goto clean_up_mmap;
     }
-    assert(ph_idx >= 0);
-    loadable_end = phdrs[ph_idx].p_vaddr + phdrs[ph_idx].p_memsz;
-    assert(loadable_end > loadable_start);
-    res->loadable_size = loadable_end - loadable_start;
+    memset(image_base, 0, image_size);
+
+    for (ph_idx = 0; ph_idx < phnum; ph_idx ++) {
+        if (phdrs[ph_idx].p_type != PT_LOAD) {
+            continue;
+        }
+
+        unsigned long seg_offset = phdrs[ph_idx].p_vaddr - loadable_start;
+        unsigned long seg_file_end = seg_offset + phdrs[ph_idx].p_filesz;
+        unsigned long seg_mem_end = seg_offset + phdrs[ph_idx].p_memsz;
+        if (seg_file_end > image_size || seg_mem_end > image_size) {
+            fprintf(stderr, "PT_LOAD segment exceeds synthesized image bounds.\n");
+            munmap(image_base, image_size);
+            retval = 1;
+            goto clean_up_mmap;
+        }
+
+        memcpy(image_base + seg_offset,
+               ((unsigned char *)elf_header) + phdrs[ph_idx].p_offset,
+               phdrs[ph_idx].p_filesz);
+    }
+
+    munmap(elf_header, file_stat.st_size);
+    close(elf_fd);
+
+    res->fd = -1;
+    res->map_base = image_base;
+    res->map_len = image_size;
+    res->size = file_stat.st_size;
+    res->code_start = (unsigned long)image_base;
+    res->code_len = image_size;
+    res->entry_offset = entry_addr - loadable_start;
+    res->loadable_size = image_size;
 
     printf("Loadable size = %lu\n", res->loadable_size);
 
@@ -236,6 +286,7 @@ static int load_elf_code_ko(const char *file_name, struct ElfCode *res) {
 
     res->fd = elf_fd;
     res->map_base = (void*)elf_header;
+    res->map_len = file_stat.st_size;
     res->size = file_stat.st_size;
     unsigned long exec_start = (unsigned long)elf_header + shdrs[exec_sh_idx].sh_addr + shdrs[exec_sh_idx].sh_offset;
     unsigned long init_text_start = (unsigned long)elf_header + shdrs[init_text_sh_idx].sh_addr + shdrs[init_text_sh_idx].sh_offset;
@@ -273,21 +324,25 @@ clean_up_file:
 }
 
 static void release_elf_code(struct ElfCode *elf_code) {
-    munmap(elf_code->map_base, elf_code->code_len);
-    close(elf_code->fd);
+    if (elf_code->map_base && elf_code->map_len) {
+        munmap(elf_code->map_base, elf_code->map_len);
+    }
+    if (elf_code->fd >= 0) {
+        close(elf_code->fd);
+    }
 }
 
 static dom_id_t create_dom_from_elf(const struct ElfCode *c_code,
                            const struct ElfCode *s_code) {
     struct ioctl_dom_create_args args = {
-        .code_begin = c_code->code_start,
+        .code_begin = (void *)c_code->code_start,
         .code_len = c_code->code_len,
         .entry_offset = c_code->entry_offset,
         .dom_id = -1
     };
     
     if(s_code) {
-        args.s_load_begin = s_code->code_start;
+        args.s_load_begin = (void *)s_code->code_start;
         args.s_load_len = s_code->code_len;
         args.s_entry_offset = s_code->entry_offset;
         args.s_size = s_code->loadable_size;
