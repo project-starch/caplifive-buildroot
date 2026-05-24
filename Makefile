@@ -1,6 +1,6 @@
 SHELL := /bin/bash
 BUILDROOT_EXTERNAL = $(CURDIR)
-DEFCONFIG = $(CURDIR)/configs/fpga_defconfig
+DEFCONFIG ?= $(CURDIR)/configs/fpga_defconfig
 CONFIG_PATH = $(CURDIR)/build
 CAPSTONE_S_OUTPUT = $(CURDIR)/components/opensbi/lib/sbi/sbi_capstone_dom.c.S \
 		$(CURDIR)/components/opensbi/lib/sbi/capstone_int_handler.c.S
