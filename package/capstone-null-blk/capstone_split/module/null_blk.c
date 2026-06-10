@@ -41,6 +41,20 @@ static inline u64 mb_per_tick(int mbps)
 	return (1 << 20) / TICKS_PER_SEC * ((u64) mbps);
 }
 
+static void null_share_metadata_region(void)
+{
+	sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_SHARE_ANNOTATED,
+		DOMAIN_NULLB_SPLIT, metadata_region, CAPSTONE_ANNOTATION_PERM_IN,
+		CAPSTONE_ANNOTATION_REV_BORROWED, 0, 0);
+	debug_counter_tick(DEBUG_COUNTER_SWITCH_S);
+}
+
+static void null_revoke_metadata_region(void)
+{
+	sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_REVOKE,
+		metadata_region, 0, 0, 0, 0, 0);
+}
+
 /*
  * Status flags for nullb_device.
  *
@@ -803,6 +817,7 @@ static void end_cmd(struct nullb_cmd *cmd)
 		unsigned long function_code = NULLBS_END_CMD_BIO;
 		memcpy(metadata_region_base, &function_code, sizeof(function_code));
 		debug_shared_counter_inc(sizeof(function_code));
+		null_share_metadata_region();
 		memcpy(ro_region_base, cmd, sizeof(struct nullb_cmd));
 		debug_borrowed_counter_inc(sizeof(struct nullb_cmd));
 
@@ -817,6 +832,7 @@ static void end_cmd(struct nullb_cmd *cmd)
 				DOMAIN_NULLB_SPLIT, 0, 0, 0, 0, 0);
 		debug_counter_tick(DEBUG_COUNTER_SWITCH_S);
 
+		null_revoke_metadata_region();
 		sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_REVOKE,
 				ro_region, 0, 0, 0, 0, 0);
 		sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_REVOKE,
@@ -1331,6 +1347,7 @@ static int null_handle_bio(struct nullb_cmd *cmd)
 		unsigned long function_code = NULLBS_BIO_OP;
 		memcpy(metadata_region_base, &function_code, sizeof(function_code));
 		debug_shared_counter_inc(sizeof(function_code));
+		null_share_metadata_region();
 		memcpy(ro_region_base, bio, sizeof(struct bio));
 		debug_borrowed_counter_inc(sizeof(struct bio));
 
@@ -1345,6 +1362,7 @@ static int null_handle_bio(struct nullb_cmd *cmd)
 				DOMAIN_NULLB_SPLIT, 0, 0, 0, 0, 0);
 		debug_counter_tick(DEBUG_COUNTER_SWITCH_S);
 
+		null_revoke_metadata_region();
 		sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_REVOKE,
 				ro_region, 0, 0, 0, 0, 0);
 		sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_REVOKE,
@@ -1458,6 +1476,7 @@ static void nullb_zero_read_cmd_buffer(struct nullb_cmd *cmd)
 	unsigned long function_code = NULLBS_BIO_OP;
 	memcpy(metadata_region_base, &function_code, sizeof(function_code));
 	debug_shared_counter_inc(sizeof(function_code));
+	null_share_metadata_region();
 	memcpy(ro_region_base, cmd->bio, sizeof(struct bio));
 	debug_borrowed_counter_inc(sizeof(struct bio));
 
@@ -1472,6 +1491,7 @@ static void nullb_zero_read_cmd_buffer(struct nullb_cmd *cmd)
 			DOMAIN_NULLB_SPLIT, 0, 0, 0, 0, 0);
 	debug_counter_tick(DEBUG_COUNTER_SWITCH_S);
 
+	null_revoke_metadata_region();
 	sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_REVOKE,
 			ro_region, 0, 0, 0, 0, 0);
 	sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_REVOKE,
@@ -1631,6 +1651,7 @@ static void null_submit_bio(struct bio *bio)
 	unsigned long function_code = NULLBS_NULLB_TO_QUEUE;
 	memcpy(metadata_region_base, &function_code, sizeof(function_code));
 	debug_shared_counter_inc(sizeof(function_code));
+	null_share_metadata_region();
 	memcpy(ro_region_base, nullb, sizeof(struct nullb));
 	debug_borrowed_counter_inc(sizeof(struct nullb));
 
@@ -1645,6 +1666,7 @@ static void null_submit_bio(struct bio *bio)
 			DOMAIN_NULLB_SPLIT, 0, 0, 0, 0, 0);
 	debug_counter_tick(DEBUG_COUNTER_SWITCH_S);
 
+	null_revoke_metadata_region();
 	sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_REVOKE,
 			ro_region, 0, 0, 0, 0, 0);
 	sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_REVOKE,
@@ -1668,6 +1690,7 @@ static void null_submit_bio(struct bio *bio)
 	function_code = NULLBS_BIO_OP;
 	memcpy(metadata_region_base, &function_code, sizeof(function_code));
 	debug_shared_counter_inc(sizeof(function_code));
+	null_share_metadata_region();
 	memcpy(ro_region_base, bio, sizeof(struct bio));
 	debug_borrowed_counter_inc(sizeof(struct bio));
 
@@ -1682,6 +1705,7 @@ static void null_submit_bio(struct bio *bio)
 			DOMAIN_NULLB_SPLIT, 0, 0, 0, 0, 0);
 	debug_counter_tick(DEBUG_COUNTER_SWITCH_S);
 
+	null_revoke_metadata_region();
 	sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_REVOKE,
 			ro_region, 0, 0, 0, 0, 0);
 	sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_REVOKE,
@@ -2133,6 +2157,21 @@ static int null_init_tag_set(struct nullb *nullb, struct blk_mq_tag_set *set)
 	return blk_mq_alloc_tag_set(set);
 }
 
+static void null_apply_validated_conf(struct nullb_device *dev,
+				      const struct nullb_device *validated)
+{
+	dev->blocksize = validated->blocksize;
+	dev->submit_queues = validated->submit_queues;
+	dev->prev_submit_queues = validated->prev_submit_queues;
+	dev->poll_queues = validated->poll_queues;
+	dev->prev_poll_queues = validated->prev_poll_queues;
+	dev->queue_mode = validated->queue_mode;
+	dev->irqmode = validated->irqmode;
+	dev->blocking = validated->blocking;
+	dev->cache_size = validated->cache_size;
+	dev->mbps = validated->mbps;
+}
+
 static int null_validate_conf(struct nullb_device *dev)
 {
 	dev->blocksize = round_down(dev->blocksize, 512);
@@ -2215,6 +2254,7 @@ static int null_add_dev(struct nullb_device *dev)
 	unsigned long function_code = NULLBS_NULL_VALIDATE_CONF;
 	memcpy(metadata_region_base, &function_code, sizeof(function_code));
 	debug_shared_counter_inc(sizeof(function_code));
+	null_share_metadata_region();
 	memcpy(nullb_dev_region_base, dev, sizeof(struct nullb_device));
 	debug_borrowed_counter_inc(sizeof(struct nullb_device));
 
@@ -2229,13 +2269,15 @@ static int null_add_dev(struct nullb_device *dev)
 			DOMAIN_NULLB_SPLIT, 0, 0, 0, 0, 0);
 	debug_counter_tick(DEBUG_COUNTER_SWITCH_S);
 
+	null_revoke_metadata_region();
 	sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_REVOKE,
 			nullb_dev_region, 0, 0, 0, 0, 0);
 	sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_REVOKE,
 			wo_region, 0, 0, 0, 0, 0);
 	
 	memcpy(&rv, wo_region_base, sizeof(int));
-	memcpy(dev, nullb_dev_region_base, sizeof(struct nullb_device));
+	null_apply_validated_conf(dev,
+				  (const struct nullb_device *)nullb_dev_region_base);
 
 	#ifdef __CAPSTONE_DEBUG_FLAG__
 		printk(KERN_INFO "exit domain: null_validate_conf\n");
@@ -2513,9 +2555,7 @@ static int __init null_init(void)
 		printk("nullb_dev_region_base = %p\n", nullb_dev_region_base);
 	#endif
 
-	sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_SHARE_ANNOTATED,
-		DOMAIN_NULLB_SPLIT, metadata_region, CAPSTONE_ANNOTATION_PERM_INOUT, CAPSTONE_ANNOTATION_REV_SHARED, 0, 0);
-	debug_counter_tick(DEBUG_COUNTER_SWITCH_S);
+	/* Metadata is borrowed per domain call; a permanent share stalls guest timers. */
 
 	/*check module paramters*/
 	if (g_bs > PAGE_SIZE) {
