@@ -446,6 +446,20 @@ void shared_region_annotated(dom_id_t dom_id, region_id_t region_id, unsigned lo
     ioctl(dev_fd, IOCTL_REGION_SHARE_ANNOTATED, (unsigned long)&args);
 }
 
+void share_child_region(dom_id_t dom_id, region_id_t parent_id, unsigned long offset,
+                        unsigned long len, unsigned long annotation_perm) {
+    struct ioctl_region_share_child_args args = {
+        .dom_id = dom_id,
+        .parent_id = parent_id,
+        .offset = offset,
+        .len = len,
+        .annotation_perm = annotation_perm,
+        .retval = 0
+    };
+    debug_counter_tick(DEBUG_COUNTER_SWITCH_U);
+    ioctl(dev_fd, IOCTL_REGION_SHARE_CHILD, (unsigned long)&args);
+}
+
 void share_region(dom_id_t dom_id, region_id_t region_id) {
     struct ioctl_region_share_args args = {
         .dom_id = dom_id,
