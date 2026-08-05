@@ -32,7 +32,18 @@
   };
   memory@80000000 {
     device_type = "memory";
-    reg = <0x0 0x80000000 0x0 0x3c3c0000>;
+    /* Usable DRAM must stop BELOW the RTL's shadow-tag region, or Linux hands out tag memory
+       as ordinary RAM and dies in early init (observed 2026-08-05: boot stalls just after
+       "riscv-intc: 64 local interrupts mapped", reproducibly, on both boots).
+       The top comes from core/include/ariane_pkg.sv MEMORY_TOP == CAP_TAG_MEM_BASE:
+         7aac52f93  (1021-node)  CAP_TAG_MEM_BASE = 0xBC3C_0000  -> size 0x3C3C0000
+         458982093  (65536-node) CAP_TAG_MEM_BASE = 0xBC2D_2D2D  -> size 0x3C2D2000
+       0x3C2D2000 is the exact 0x3C2D2D2D rounded DOWN to a 4 KiB page. The tag region that
+       remains (0x3C2D2D3 bytes, up to CAP_REVNODE_MEM_BASE = 0xBFF0_0000) still covers
+       size/16 = 0x3C2D200, as the hardware requires (tag_addr = CAP_TAG_MEM_BASE + paddr>>4).
+       RE-DERIVE THIS FROM THE RTL AFTER ANY RE-FLASH -- the pool size moves both constants,
+       and calculate_memory.py prints the pair to paste. */
+    reg = <0x0 0x80000000 0x0 0x3c2d2000>;
   };
   leds {
     compatible = "gpio-leds";
