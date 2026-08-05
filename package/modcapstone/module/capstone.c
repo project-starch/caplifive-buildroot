@@ -206,7 +206,19 @@ static void ioctl_revoke_region(struct ioctl_region_revoke_args* __user args) {
 
 static void ioctl_share_region_annotated(struct ioctl_region_share_annotated_args* __user args) {
 	struct ioctl_region_share_annotated_args m_args;
-	copy_from_user(&m_args, args, sizeof(struct ioctl_region_share_annotated_args));
+	unsigned long cfu_left;
+	/* The board shows userspace sending region_id=12 perm=1 rev=2 while the monitor reads
+	   0/0/0. copy_from_user's return value was IGNORED here and m_args is an
+	   uninitialised stack struct, so a failed or partial copy would leave the fields as
+	   whatever the stack held -- zeros -- and this would ecall with them regardless.
+	   memset first so a partial copy is distinguishable from stack garbage, capture the
+	   bytes-not-copied, and print both: that separates "the copy failed" from "the copy
+	   worked and the SBI transition loses the arguments". */
+	memset(&m_args, 0, sizeof(m_args));
+	cfu_left = copy_from_user(&m_args, args, sizeof(struct ioctl_region_share_annotated_args));
+	pr_warn("share_annot: cfu_left=%lu dom=%lu rgn=%lu prm=%lu rev=%lu\n",
+		cfu_left, (unsigned long)m_args.dom_id, (unsigned long)m_args.region_id,
+		(unsigned long)m_args.annotation_perm, (unsigned long)m_args.annotation_rev);
 
 	struct sbiret sbi_res = sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_SHARE_ANNOTATED,
 				m_args.dom_id, m_args.region_id, m_args.annotation_perm, m_args.annotation_rev, 0, 0);
