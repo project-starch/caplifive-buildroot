@@ -80,11 +80,33 @@ static void ioctl_create_dom(struct ioctl_dom_create_args* __user args) {
 	}
 
 	// allocate a contiguous memory region and copy code there
-	unsigned long dom_tot_size = m_args.code_len + DOMAIN_DATA_SIZE;
+	/* KEPT IN STEP WITH THE BOARD MODULE
+	 * (caplifive-system/sw/buildroot/package/modcapstone/module/capstone.c) -- the two had
+	 * silently diverged, and that divergence made QEMU useless as an oracle for SQLite.
+	 *
+	 * With a flat 64 KiB of headroom, SQLite's ~1.38 MB image rounds to a 2 MiB domain, leaving
+	 * ~718 KB of dom_data for the globals blob, cap table, heap and stack together. A 1 MiB heap
+	 * therefore does not fit, the entry glue's carve loop walks past the end of dom_data, and the
+	 * resulting SPLIT is degenerate. On this emulator that is not a graceful failure: QEMU's
+	 * helper_cssplit ASSERTS (op_helper.c:881) and aborts the process during the first region
+	 * share, long before the domain runs -- which reads exactly like "the domain is broken" and
+	 * cost a full misdiagnosis before the two geometries were compared side by side.
+	 *
+	 * max(code_len, DOMAIN_DATA_SIZE) gives SQLite the same order-10 (4 MiB) domain the board
+	 * gives it, so a QEMU run and a board run of the same image now have the same heap and stack.
+	 * Images below 64 KiB keep exactly their previous headroom, page count and order, so every
+	 * ladder rung's geometry is byte-identical and no measured number moves.
+	 *
+	 * __GFP_ZERO matches the board too. Without it the domain's pages arrive with whatever the
+	 * previous owner left in them, so any read of not-yet-initialised domain memory behaves
+	 * differently under QEMU than on the board -- the worst possible property in an oracle. */
+	unsigned long dom_headroom = m_args.code_len > DOMAIN_DATA_SIZE
+	                                 ? m_args.code_len : DOMAIN_DATA_SIZE;
+	unsigned long dom_tot_size = m_args.code_len + dom_headroom;
 	unsigned long dom_pages = (dom_tot_size - 1) / PAGE_SIZE + 1;
 	unsigned long dom_pages_log2 = dom_pages == 1 ? 0 : (ilog2(dom_pages - 1) + 1);
 
-	unsigned long dom_vaddr = (unsigned long)__get_free_pages(GFP_HIGHUSER, dom_pages_log2);
+	unsigned long dom_vaddr = (unsigned long)__get_free_pages(GFP_HIGHUSER | __GFP_ZERO, dom_pages_log2);
 	if (!dom_vaddr) {
 		pr_alert("Failed to allocate memory for domain.\n");
 		return;
