@@ -80,7 +80,33 @@ static void ioctl_create_dom(struct ioctl_dom_create_args* __user args) {
 	}
 
 	// allocate a contiguous memory region and copy code there
-	unsigned long dom_tot_size = m_args.code_len + DOMAIN_DATA_SIZE;
+	/* Headroom must SCALE with the image, not be a fixed 64 KiB.
+	 *
+	 * dom_tot_size is rounded UP to a power-of-two page count, and everything the domain
+	 * owns at run time -- globals blob, cap table, heap and STACK -- comes out of whatever
+	 * is left after code_size. For a 10 KB ladder rung, 64 KiB of headroom rounds to
+	 * 128 KiB and is plenty. For SQLite at ~1.38 MB of code it rounds to 2 MiB, leaving
+	 * ~700 KB for all four -- so the heap and the stack have to be traded against each
+	 * other, and at 512 KiB of heap the stack is down to 57 KiB, which a recursive
+	 * expression walker overruns on its own. Doubling for large images pushes SQLite to
+	 * order-10 (4 MiB), which leaves ~2.6 MB of dom_data: a 1 MiB heap and a ~1.5 MB stack
+	 * at the same time, so neither is sized by the other.
+	 *
+	 * WHAT THIS DOES NOT CLAIM. An earlier version of this comment said memory starvation
+	 * was the CAUSE of the SQLite wedge. That is RETRACTED (2026-08-12): the domain was
+	 * subsequently run with 4x the heap and 5x the stack and wedged on the IDENTICAL
+	 * instruction, so the size was never the fault -- the real cause was data corruption
+	 * (S-06). This change stands anyway, because trading heap against stack made every
+	 * later experiment ambiguous: a failure could always be blamed on whichever of the two
+	 * had been shrunk. Sizing both generously removes that confound; it fixes nothing.
+	 *
+	 * Written as max(code_len, DOMAIN_DATA_SIZE) so SMALL DOMAINS ARE UNCHANGED: any image
+	 * below 64 KiB keeps exactly the headroom, page count and order it had before, so every
+	 * existing ladder rung's geometry -- and the published numbers taken with it -- is
+	 * byte-identical. Only images larger than 64 KiB see any difference at all. */
+	unsigned long dom_headroom = m_args.code_len > DOMAIN_DATA_SIZE
+	                                 ? m_args.code_len : DOMAIN_DATA_SIZE;
+	unsigned long dom_tot_size = m_args.code_len + dom_headroom;
 	unsigned long dom_pages = (dom_tot_size - 1) / PAGE_SIZE + 1;
 	unsigned long dom_pages_log2 = dom_pages == 1 ? 0 : (ilog2(dom_pages - 1) + 1);
 
