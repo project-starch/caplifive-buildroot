@@ -23,8 +23,22 @@ build: $(CAPSTONE_S_OUTPUT)
 	fi
 
 
-$(CAPSTONE_S_OUTPUT):%.c.S:%.c
-	cd "$(CAPSTONE_CC_PATH)" && if ! /bin/sh -c 'cargo run -- --abi capstone $^ -- -I"$(CAPSTONE_S_INCLUDE)" -D__riscv_xlen=64 > "$@"'; then \
+# THE MONITOR SOURCE IS A PREREQUISITE, NOT JUST THE ONE-LINE WRAPPER.
+#
+# sbi_capstone_dom.c is a single `#include "capstone-sbi/sbi_capstone.c"`. With the bare
+# %.c.S:%.c rule, make compared the .c.S against that wrapper only, so every edit to the
+# monitor itself left the .c.S -- and therefore fw_jump.elf -- silently STALE. The rebuild
+# reported success, the firmware kept its byte-identical old size, and the change simply did
+# not exist in what QEMU booted. That cost a full misdiagnosis loop today: a monitor fix was
+# applied, rebuilt, re-tested, and produced a byte-identical failure at the same pc.
+#
+# $< is used below rather than $^ because the recipe must pass ONLY the wrapper to the
+# compiler; the extra prerequisite is for dependency tracking, not an input file.
+#
+# package/capstone-sbi-domain/Makefile already declares this dependency correctly, which is
+# why that copy never had the problem -- this rule was the odd one out.
+$(CAPSTONE_S_OUTPUT):%.c.S:%.c $(CAPSTONE_S_INPUT)
+	cd "$(CAPSTONE_CC_PATH)" && if ! /bin/sh -c 'cargo run -- --abi capstone $< -- -I"$(CAPSTONE_S_INCLUDE)" -D__riscv_xlen=64 > "$@"'; then \
 		rm -f "$@"; \
 		echo "Compilation error. Make sure you supply the correct Capstone-C compiler directory path in CAPSTONE_CC_PATH" >&2; \
 		false; \
