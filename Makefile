@@ -86,8 +86,23 @@ format-sd:
 		--new=2:$(KERNEL_SECTORSTART):0 --typecode=2:8300 \
 		$(SDDEVICE)
 
-$(CAPSTONE_S_OUTPUT):%.c.S:%.c
-	cd "$(CAPSTONE_CC_PATH)" && if ! /bin/sh -c 'cargo run -- --abi capstone $^ -- -I"$(CAPSTONE_S_INCLUDE)" -D__riscv_xlen=64 > "$@"'; then \
+# THE MONITOR SOURCE IS A PREREQUISITE, NOT JUST THE ONE-LINE WRAPPER.
+#
+# sbi_capstone_dom.c is a single `#include "capstone-sbi/sbi_capstone.c"`. With the bare
+# %.c.S:%.c rule, make compared the generated assembly against that wrapper only, so every edit
+# to the monitor left the .c.S -- and therefore the BOARD FIRMWARE -- silently stale while the
+# build reported success.
+#
+# This had already fired and gone unnoticed: on 2026-08-15 the flashed firmware was found to be
+# built from Aug-6 assembly while sbi_capstone.c was Aug-12, so the DBAS/DENT trace markers added
+# for a board investigation were absent from every boot that was supposed to print them. The
+# identical defect existed in caplifive-buildroot's Makefile (the QEMU path) and cost a full
+# misdiagnosis loop there the day before.
+#
+# $< is used below rather than $^ because the recipe must pass ONLY the wrapper to the compiler;
+# the extra prerequisite is for dependency tracking, not an input file.
+$(CAPSTONE_S_OUTPUT):%.c.S:%.c $(CAPSTONE_S_INPUT)
+	cd "$(CAPSTONE_CC_PATH)" && if ! /bin/sh -c 'cargo run -- --abi capstone $< -- -I"$(CAPSTONE_S_INCLUDE)" -D__riscv_xlen=64 > "$@"'; then \
 		rm -f "$@"; \
 		echo "Compilation error. Make sure you supply the correct Capstone-C compiler directory path in CAPSTONE_CC_PATH" >&2; \
 		false; \
