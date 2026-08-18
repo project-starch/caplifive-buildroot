@@ -4,8 +4,17 @@ DEFCONFIG ?= $(CURDIR)/configs/fpga_defconfig
 CONFIG_PATH = $(CURDIR)/build
 CAPSTONE_S_OUTPUT = $(CURDIR)/components/opensbi/lib/sbi/sbi_capstone_dom.c.S \
 		$(CURDIR)/components/opensbi/lib/sbi/capstone_int_handler.c.S
-CAPSTONE_S_INPUT = $(CURDIR)/components/opensbi/lib/sbi/capstone-sbi/sbi_capstone.c
 CAPSTONE_S_INCLUDE = $(CURDIR)/components/opensbi/lib/sbi/capstone-sbi
+# THE HEADERS COUNT TOO. Adding only the .c above closed half the hole: sbi_capstone.h carries
+# CAPSTONE_MAX_REGION_N, CAPSTONE_MAX_DOM_N and the error codes, so a header-only edit still left
+# the generated assembly -- and the board firmware -- stale while the build reported success.
+#
+# That cost a boot on 2026-08-18. The region-table limit was raised in the header, the firmware
+# relinked, the fresh timestamp looked convincing, and the board still enforced the OLD limit;
+# the change was nearly written off as ineffective before the generated asm was checked. Using a
+# wildcard rather than naming the header keeps this correct when another one is added.
+CAPSTONE_S_INPUT = $(CURDIR)/components/opensbi/lib/sbi/capstone-sbi/sbi_capstone.c \
+		$(wildcard $(CURDIR)/components/opensbi/lib/sbi/capstone-sbi/*.h)
 PLATFORM := fpga/ariane
 SDDEVICE ?=
 
