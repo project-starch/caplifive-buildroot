@@ -111,7 +111,7 @@ format-sd:
 # $< is used below rather than $^ because the recipe must pass ONLY the wrapper to the compiler;
 # the extra prerequisite is for dependency tracking, not an input file.
 $(CAPSTONE_S_OUTPUT):%.c.S:%.c $(CAPSTONE_S_INPUT)
-	cd "$(CAPSTONE_CC_PATH)" && if ! /bin/sh -c 'cargo run -- --abi capstone $< -- -I"$(CAPSTONE_S_INCLUDE)" -D__riscv_xlen=64 > "$@"'; then \
+	cd "$(CAPSTONE_CC_PATH)" && if ! /bin/sh -c 'cargo run -- --abi capstone $< -- -I"$(CAPSTONE_S_INCLUDE)" -D__riscv_xlen=64 $(CAPSTONE_EXTRA_DEFS) > "$@"'; then \
 		rm -f "$@"; \
 		echo "Compilation error. Make sure you supply the correct Capstone-C compiler directory path in CAPSTONE_CC_PATH" >&2; \
 		false; \
