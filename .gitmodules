@@ -9,4 +9,4 @@
 	url = https://github.com/project-starch/capstone-opensbi.git
 [submodule "package/sbi-domain/capstone-sbi"]
 	path = package/capstone-sbi-domain/capstone-sbi
-	url = https://github.com/project-starch/capstone-sbi.git
+	url = https://github.com/project-starch/caplifive-sbi.git
