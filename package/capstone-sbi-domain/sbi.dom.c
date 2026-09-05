@@ -46,6 +46,9 @@ __domentry __domreentryrestores void entry(__domret void *ra, unsigned func, uns
         region_n = 1;
         for(i = 1; i < CAPSTONE_MAX_REGION_N; i += 1)
             region_cpmp[i] = -1;
+        region_live[0] = 1;
+        for(i = 1; i < CAPSTONE_MAX_REGION_N; i += 1)
+            region_live[i] = 0;
         for(i = 1; i < 16; i += 1)
             cpmp_region[i] = -1;
         initialised = 1;
