@@ -1,4 +1,5 @@
 # One output directory per target (build-fpga, build-qemu); `build` is a per-checkout symlink.
+build
 build/
 build-*/
 *.bk

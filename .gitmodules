@@ -10,6 +10,3 @@
 [submodule "components/linux"]
 	path = components/linux
 	url = https://github.com/project-starch/transcapstone-linux.git
-[submodule "components/opensbi-qemu"]
-	path = components/opensbi-qemu
-	url = https://github.com/project-starch/capstone-opensbi.git

@@ -35,12 +35,17 @@ CAPSTONE_EXTRA_DEFS += -DCAPSTONE_TARGET_FPGA
 LINUX_PAYLOAD ?= 1
 else
 DEFCONFIG := $(CURDIR)/configs/qemu_capstone_defconfig
-# Transitional: the QEMU stand-in monitor still lives in its own checkout of the OpenSBI wrapper
-# until the monitor sources are unified (plan: docs/plans/monitor-unification.md, phase A1).
-OPENSBI_DIR := $(CURDIR)/components/opensbi-qemu
-CAPSTONE_EXTRA_DEFS += -DCAPSTONE_TARGET_QEMU
+OPENSBI_DIR := $(CURDIR)/components/opensbi
+# The QEMU-private debug counters stay compiled into the QEMU monitor, as they always were.
+CAPSTONE_EXTRA_DEFS += -DCAPSTONE_TARGET_QEMU -DCAPSTONE_DEBUG_ENABLE
 LINUX_PAYLOAD ?=
 endif
+
+# The generated monitor assembly is per TARGET (the defines above select per-target code), and the
+# two targets share one wrapper directory, so the .c.S must be regenerated when the TARGET changes,
+# not only when a source changes. This stamp records the defines the current .c.S was made with.
+CAPSTONE_DEFS_STAMP := $(OPENSBI_DIR)/lib/sbi/.capstone-defs
+$(shell mkdir -p $(dir $(CAPSTONE_DEFS_STAMP)); [ "$$(cat $(CAPSTONE_DEFS_STAMP) 2>/dev/null)" = "$(CAPSTONE_EXTRA_DEFS)" ] || echo "$(CAPSTONE_EXTRA_DEFS)" > $(CAPSTONE_DEFS_STAMP))
 
 ifeq ($(LINUX_PAYLOAD),1)
 export LINUX_PAYLOAD=1
@@ -173,7 +178,7 @@ endif
 # the extra prerequisite is for dependency tracking, not an input file. A FAILED regen deletes
 # its output: parse the wrapper in place first when editing the monitor, or the tree cannot relink
 # until the source parses again.
-$(CAPSTONE_S_OUTPUT):%.c.S:%.c $(CAPSTONE_S_INPUT)
+$(CAPSTONE_S_OUTPUT):%.c.S:%.c $(CAPSTONE_S_INPUT) $(CAPSTONE_DEFS_STAMP)
 	cd "$(CAPSTONE_CC_PATH)" && if ! /bin/sh -c 'cargo run -- --abi capstone $< -- -I"$(CAPSTONE_S_INCLUDE)" -D__riscv_xlen=64 $(CAPSTONE_EXTRA_DEFS) > "$@"'; then \
 		rm -f "$@"; \
 		echo "Compilation error. Make sure you supply the correct Capstone-C compiler directory path in CAPSTONE_CC_PATH" >&2; \
