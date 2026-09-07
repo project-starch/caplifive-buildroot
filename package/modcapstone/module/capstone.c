@@ -266,6 +266,10 @@ static void ioctl_share_child_region(struct ioctl_region_share_child_args* __use
 
 static void ioctl_share_region_annotated(struct ioctl_region_share_annotated_args* __user args) {
 	struct ioctl_region_share_annotated_args m_args;
+	/* Zero first: copy_from_user's return is not checked here, and a short copy must not leave
+	   stack garbage in the fields the monitor reads. (The board's diagnostic print that came
+	   with this memset is retired; the memset stays.) */
+	memset(&m_args, 0, sizeof(m_args));
 	copy_from_user(&m_args, args, sizeof(struct ioctl_region_share_annotated_args));
 
 	struct sbiret sbi_res = sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_SHARE_ANNOTATED,

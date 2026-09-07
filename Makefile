@@ -45,7 +45,10 @@ endif
 # two targets share one wrapper directory, so the .c.S must be regenerated when the TARGET changes,
 # not only when a source changes. This stamp records the defines the current .c.S was made with.
 CAPSTONE_DEFS_STAMP := $(OPENSBI_DIR)/lib/sbi/.capstone-defs
+# Not during a dry run (make -n): a check must not change the state it reports on.
+ifeq ($(findstring n,$(firstword -$(MAKEFLAGS))),)
 $(shell mkdir -p $(dir $(CAPSTONE_DEFS_STAMP)); [ "$$(cat $(CAPSTONE_DEFS_STAMP) 2>/dev/null)" = "$(CAPSTONE_EXTRA_DEFS)" ] || echo "$(CAPSTONE_EXTRA_DEFS)" > $(CAPSTONE_DEFS_STAMP))
+endif
 
 ifeq ($(LINUX_PAYLOAD),1)
 export LINUX_PAYLOAD=1
@@ -179,8 +182,10 @@ endif
 # its output: parse the wrapper in place first when editing the monitor, or the tree cannot relink
 # until the source parses again.
 $(CAPSTONE_S_OUTPUT):%.c.S:%.c $(CAPSTONE_S_INPUT) $(CAPSTONE_DEFS_STAMP)
-	cd "$(CAPSTONE_CC_PATH)" && if ! /bin/sh -c 'cargo run -- --abi capstone $< -- -I"$(CAPSTONE_S_INCLUDE)" -D__riscv_xlen=64 $(CAPSTONE_EXTRA_DEFS) > "$@"'; then \
-		rm -f "$@"; \
+	cd "$(CAPSTONE_CC_PATH)" && if /bin/sh -c 'cargo run -- --abi capstone $< -- -I"$(CAPSTONE_S_INCLUDE)" -D__riscv_xlen=64 $(CAPSTONE_EXTRA_DEFS) > "$@.tmp"'; then \
+		mv -f "$@.tmp" "$@"; \
+	else \
+		rm -f "$@.tmp" "$@"; \
 		echo "Compilation error. Make sure you supply the correct Capstone-C compiler directory path in CAPSTONE_CC_PATH" >&2; \
 		false; \
 	fi
