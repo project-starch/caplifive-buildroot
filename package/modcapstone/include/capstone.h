@@ -53,6 +53,15 @@ struct ioctl_region_revoke_args {
     unsigned retval;
 };
 
+struct ioctl_region_share_child_args {
+    dom_id_t dom_id;
+    region_id_t parent_id;
+    unsigned long offset;
+    unsigned long len;
+    unsigned long annotation_perm;
+    unsigned retval;
+};
+
 struct ioctl_region_query_args {
     region_id_t region_id;
     size_t mmap_offset;
@@ -73,5 +82,6 @@ struct ioctl_dom_sched_args {
 #define IOCTL_DOM_SCHEDULE          _IOWR(IOC_MAGIC, 6, struct ioctl_dom_sched_args)
 #define IOCTL_REGION_SHARE_ANNOTATED          _IOWR(IOC_MAGIC, 7, struct ioctl_region_share_annotated_args)
 #define IOCTL_REGION_REVOKE          _IOWR(IOC_MAGIC, 8, struct ioctl_region_revoke_args)
+#define IOCTL_REGION_SHARE_CHILD     _IOWR(IOC_MAGIC, 9, struct ioctl_region_share_child_args)
 
 #endif

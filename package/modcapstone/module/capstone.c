@@ -129,6 +129,14 @@ static void ioctl_create_dom(struct ioctl_dom_create_args* __user args) {
 		/* tot size = */ (1 << dom_pages_log2) * PAGE_SIZE,
 		/* entry offset = */ m_args.entry_offset,
 		0, 0);
+	if (sbi_res.error) {
+		pr_err("DOM_CREATE failed: paddr=%lx code_len=%lu tot_size=%lx entry_offset=%lx error=%ld value=%ld\n",
+			dom_paddr, m_args.code_len, (1 << dom_pages_log2) * PAGE_SIZE,
+			m_args.entry_offset, sbi_res.error, sbi_res.value);
+		m_args.dom_id = (dom_id_t)-1;
+		copy_to_user(args, &m_args, sizeof(struct ioctl_dom_create_args));
+		return;
+	}
 	m_args.dom_id = (dom_id_t)sbi_res.value;
 	copy_to_user(args, &m_args, sizeof(struct ioctl_dom_create_args));
 
@@ -153,6 +161,12 @@ static void ioctl_create_dom(struct ioctl_dom_create_args* __user args) {
 		sbi_res = sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_DOM_CALL_WITH_CAP,
 			m_args.dom_id, __pa(dom_s_load_vaddr), dom_s_load_actual_size,
 			__pa(dom_s_load_vaddr) + m_args.s_entry_offset, 0, 0);
+		if (sbi_res.error || sbi_res.value) {
+			pr_err("DOM_CALL_WITH_CAP failed: dom_id=%lu s_paddr=%lx s_size=%lu s_entry=%lx error=%ld value=%ld\n",
+				m_args.dom_id, __pa(dom_s_load_vaddr), dom_s_load_actual_size,
+				__pa(dom_s_load_vaddr) + m_args.s_entry_offset, sbi_res.error,
+				sbi_res.value);
+		}
 
 		if (sbi_res.value) {
 			pr_alert("Failed to initialise S mode\n");
@@ -195,6 +209,14 @@ static void ioctl_create_region(struct ioctl_region_create_args* __user args) {
 
 	struct sbiret sbi_res = sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_CREATE,
 				__pa(vaddr), m_args.len, 0, 0, 0, 0);
+	if (sbi_res.error) {
+		free_pages(vaddr, n_pages_log2);
+		pr_err("REGION_CREATE failed: len=%lu vaddr=%lx paddr=%lx error=%ld value=%ld\n",
+			m_args.len, vaddr, __pa(vaddr), sbi_res.error, sbi_res.value);
+		m_args.region_id = (region_id_t)-1;
+		copy_to_user(args, &m_args, sizeof(struct ioctl_region_create_args));
+		return;
+	}
 	m_args.region_id = sbi_res.value;
 
 	if(region_n > m_args.region_id) {
@@ -230,21 +252,21 @@ static void ioctl_revoke_region(struct ioctl_region_revoke_args* __user args) {
 	copy_to_user(args, &m_args, sizeof(struct ioctl_region_revoke_args));
 }
 
+static void ioctl_share_child_region(struct ioctl_region_share_child_args* __user args) {
+	struct ioctl_region_share_child_args m_args;
+	copy_from_user(&m_args, args, sizeof(struct ioctl_region_share_child_args));
+
+	struct sbiret sbi_res = sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_SHARE_CHILD,
+				m_args.dom_id, m_args.parent_id, m_args.offset, m_args.len,
+				m_args.annotation_perm, 0);
+	m_args.retval = sbi_res.value;
+
+	copy_to_user(args, &m_args, sizeof(struct ioctl_region_share_child_args));
+}
+
 static void ioctl_share_region_annotated(struct ioctl_region_share_annotated_args* __user args) {
 	struct ioctl_region_share_annotated_args m_args;
-	unsigned long cfu_left;
-	/* The board shows userspace sending region_id=12 perm=1 rev=2 while the monitor reads
-	   0/0/0. copy_from_user's return value was IGNORED here and m_args is an
-	   uninitialised stack struct, so a failed or partial copy would leave the fields as
-	   whatever the stack held -- zeros -- and this would ecall with them regardless.
-	   memset first so a partial copy is distinguishable from stack garbage, capture the
-	   bytes-not-copied, and print both: that separates "the copy failed" from "the copy
-	   worked and the SBI transition loses the arguments". */
-	memset(&m_args, 0, sizeof(m_args));
-	cfu_left = copy_from_user(&m_args, args, sizeof(struct ioctl_region_share_annotated_args));
-	pr_warn("share_annot: cfu_left=%lu dom=%lu rgn=%lu prm=%lu rev=%lu\n",
-		cfu_left, (unsigned long)m_args.dom_id, (unsigned long)m_args.region_id,
-		(unsigned long)m_args.annotation_perm, (unsigned long)m_args.annotation_rev);
+	copy_from_user(&m_args, args, sizeof(struct ioctl_region_share_annotated_args));
 
 	struct sbiret sbi_res = sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_SHARE_ANNOTATED,
 				m_args.dom_id, m_args.region_id, m_args.annotation_perm, m_args.annotation_rev, 0, 0);
@@ -347,6 +369,9 @@ static long device_ioctl(struct file* file,
 			break;
 		case IOCTL_REGION_REVOKE:
 			ioctl_revoke_region((struct ioctl_region_revoke_args* __user)ioctl_param);
+			break;
+		case IOCTL_REGION_SHARE_CHILD:
+			ioctl_share_child_region((struct ioctl_region_share_child_args* __user)ioctl_param);
 			break;
 		default:
 			pr_info("Unrecognised IOCTL command %u\n", ioctl_num);
