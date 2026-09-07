@@ -93,7 +93,11 @@ main() {
 
     install_packages "${dependencies[@]}"
     check_rust_toolchain
-    export CAPSTONE_CC_PATH="$(realpath ../capstone-c)"
+    # Resolve the monitor compiler from THIS script's location, never from the caller's cwd: a
+    # relative ../capstone-c meant a different compiler in each checkout of this tree.
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    export CAPSTONE_CC_PATH="${CAPSTONE_CC_PATH:-$(realpath "$SCRIPT_DIR/../capstone-c")}"
+    echo "TARGET=${TARGET:-fpga} CAPSTONE_CC_PATH=$CAPSTONE_CC_PATH"
     make setup
 
     if [ -n "$VANILLA" ]; then

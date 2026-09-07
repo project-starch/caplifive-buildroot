@@ -35,6 +35,9 @@ BR2_TARGET_GENERIC_GETTY_BAUDRATE_57600=y
 
 
 
+# Package overrides (which components/* replace buildroot packages) -- per target
+BR2_PACKAGE_OVERRIDE_FILE="$(BR2_EXTERNAL_CAPSTONE_PATH)/local-fpga.mk"
+
 # Capstone external
 BR2_PACKAGE_MODCAPSTONE=y
 BR2_PACKAGE_CAPSTONE_TEST_DOMAINS=y

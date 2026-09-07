@@ -2,7 +2,6 @@ MODCAPSTONE_VERSION = 1.0
 MODCAPSTONE_SITE = $(BR2_EXTERNAL_CAPSTONE_PATH)/package/modcapstone
 MODCAPSTONE_SITE_METHOD = local
 
-EXTRA_CFLAGS += -march=rv64g -mabi=lp64d
 
 define MODCAPSTONE_BUILD_CMDS
 	$(MAKE) -C '$(@D)'/module LINUX_DIR='$(LINUX_DIR)' PWD='$(@D)'/module CC='$(TARGET_CC)' LD='$(TARGET_LD)' \

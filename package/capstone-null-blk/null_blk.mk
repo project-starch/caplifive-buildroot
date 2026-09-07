@@ -2,7 +2,6 @@ CAPSTONE_NULL_BLK_VERSION = 1.0
 CAPSTONE_NULL_BLK_SITE = $(BR2_EXTERNAL_CAPSTONE_PATH)/package/capstone-null-blk
 CAPSTONE_NULL_BLK_SITE_METHOD = local
 
-EXTRA_CFLAGS += -march=rv64g -mabi=lp64d
 
 define CAPSTONE_NULL_BLK_BUILD_CMDS
 	$(MAKE) -C '$(@D)'/baseline LINUX_DIR='$(LINUX_DIR)' PWD='$(@D)'/baseline CC='$(TARGET_CC)' LD='$(TARGET_LD)' \

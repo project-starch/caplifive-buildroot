@@ -1,5 +1,11 @@
-build/*
-!build/local.mk
+# One output directory per target (build-fpga, build-qemu); `build` is a per-checkout symlink.
+build/
+build-*/
 *.bk
 .vscode/
 .out
+# Staging area the board bake step writes .dom images into (board-run skill).
+# These are build artifacts regenerated on every bake -- ~9 MB per set. Frozen
+# reproducer binaries belong in capstone/tests/fpga-repros/<ID>/, where they are
+# committed deliberately, not here.
+overlay/test-domains/

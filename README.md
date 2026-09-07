@@ -48,13 +48,22 @@ To build the Docker image, follow these steps:
 
 ### ⚡ **Quick Notes:**
 ---
-If you have made changes to OpenSBI, sync and rebuild with
-
-**Please manually delete `sbi_capstone_dom.c.S` and `capstone_int_handler.c.S` in `components/opensbi/lib/sbi` before rebuild.**
+**One tree, two targets.** `make TARGET=fpga …` (default) builds the board firmware (`fpga_defconfig`,
+OpenSBI `fpga/ariane`, kernel + initramfs embedded in `fw_payload.bin`); `make TARGET=qemu …` builds
+the QEMU stand-in (`qemu_capstone_defconfig`, `generic`, `fw_jump.elf` + ext2 rootfs). Each target
+builds in its own `build-<target>/`; make `build` a symlink to the one this checkout serves, since the
+test harnesses read `build/images`. The monitor compiler is required and printed on every build:
 
 ```sh
-make build CAPSTONE_CC_PATH=<path-to-capstone-c-compiler-directory> A=opensbi-rebuild
+export CAPSTONE_CC_PATH=<path-to-capstone-c-checkout>
+make TARGET=fpga setup && make TARGET=fpga build
+make TARGET=fpga build A=opensbi-rebuild     # after a monitor edit: regenerates the .c.S, relinks
+make TARGET=qemu setup && make TARGET=qemu build
 ```
+
+The generated `sbi_capstone_dom.c.S` / `capstone_int_handler.c.S` depend on the monitor source and
+headers, so they regenerate on their own; a failed regeneration deletes them, so parse the wrapper
+in place first when editing the monitor (see `docs/plans/monitor-unification.md` in the parent tree).
 
 Similarly, to sync changes to the Linux kernel and rebuild, use
 
