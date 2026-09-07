@@ -8,13 +8,12 @@
 #define __domentry __attribute__((domentry))
 #define __domreentry __attribute__((domreentry))
 #define __domreentryrestores __attribute__((domreentryrestores))
-#define C_PRINT(v) __asm__ (".insn r 0x0B, 0, 0x7c, x0, %0, x0" : : "r"(v))
 
 #define cap_cursor(cap) __capfield((cap), 2)
 
 unsigned initialised = 0;
 
-__domentry __domreentryrestores void entry(__domret void *ra, unsigned func, __linear unsigned *buf) {
+__domentry __domreentryrestores void entry(__domret void *ra, unsigned func, unsigned *buf) {
     int i;
     int handled;
     unsigned s_entry_addr;
@@ -47,6 +46,9 @@ __domentry __domreentryrestores void entry(__domret void *ra, unsigned func, __l
         region_n = 1;
         for(i = 1; i < CAPSTONE_MAX_REGION_N; i += 1)
             region_cpmp[i] = -1;
+        region_live[0] = 1;
+        for(i = 1; i < CAPSTONE_MAX_REGION_N; i += 1)
+            region_live[i] = 0;
         for(i = 1; i < 16; i += 1)
             cpmp_region[i] = -1;
         initialised = 1;
