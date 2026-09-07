@@ -1,7 +1,8 @@
-# One output directory per target (build-fpga, build-qemu); `build` is a per-checkout symlink.
+# One output directory per target (build-fpga, build-qemu). Either `build` is a symlink to the
+# target directory or the target name is a symlink to the real `build` -- both untracked.
 build
 build/
-build-*/
+build-*
 *.bk
 .vscode/
 .out

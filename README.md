@@ -51,8 +51,8 @@ To build the Docker image, follow these steps:
 **One tree, two targets.** `make TARGET=fpga …` (default) builds the board firmware (`fpga_defconfig`,
 OpenSBI `fpga/ariane`, kernel + initramfs embedded in `fw_payload.bin`); `make TARGET=qemu …` builds
 the QEMU stand-in (`qemu_capstone_defconfig`, `generic`, `fw_jump.elf` + ext2 rootfs). Each target
-builds in its own `build-<target>/`; make `build` a symlink to the one this checkout serves, since the
-test harnesses read `build/images`. The monitor compiler is required and printed on every build:
+builds in its own `build-<target>/`; in a checkout that serves one target, symlink the two names to each
+other (either direction), since the test harnesses read `build/images`. The monitor compiler is required and printed on every build:
 
 ```sh
 export CAPSTONE_CC_PATH=<path-to-capstone-c-checkout>
