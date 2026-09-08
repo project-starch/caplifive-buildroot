@@ -1,3 +1,5 @@
+/* sbi.dom is the QEMU stand-in monitor compiled as a domain: build the QEMU arm of the unified source. */
+#define CAPSTONE_TARGET_QEMU 1
 #include "capstone-sbi/sbi_capstone.c"
 
 #define __linear __attribute__((linear))

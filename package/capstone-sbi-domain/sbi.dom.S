@@ -1,3 +1,4 @@
+#define CAPSTONE_TARGET_QEMU 1
 #define DOM_REENTRY_POINT __entry_reentry
 
 #include "capstone-sbi/sbi_capstone.S"
