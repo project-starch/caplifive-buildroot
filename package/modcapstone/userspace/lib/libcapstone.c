@@ -276,6 +276,19 @@ clean_up_file:
     return retval;
 }
 
+/* ET_REL (a kernel-module-style object, sections only) vs ET_EXEC (program headers). */
+static int elf_is_relocatable(const char *file_name) {
+    int fd = open(file_name, O_RDONLY);
+    if (fd < 0) return 0;
+    Elf64_Ehdr eh; int n = read(fd, &eh, sizeof eh); close(fd);
+    return n == (int)sizeof eh && eh.e_type == ET_REL;
+}
+
+/* load_elf_code_ko: the QEMU line's version, restored 2026-09-08 (Phase B item 4). The board line's
+   2026-05 edit dropped the sh_addr term (a no-op for ET_REL, where sh_addr is 0) AND replaced the
+   loadable span (exec section start .. last section end) with the LAST section's own size, so
+   s_size arrived as 1 byte and the module refused the domain (s_size < s_load_len). Only the
+   ET_REL path uses this loader now (see create_dom_ko). */
 static int load_elf_code_ko(const char *file_name, struct ElfCode *res) {
     int retval = 0;
 
@@ -353,8 +366,8 @@ static int load_elf_code_ko(const char *file_name, struct ElfCode *res) {
     res->map_base = (void*)elf_header;
     res->map_len = file_stat.st_size;
     res->size = file_stat.st_size;
-    unsigned long exec_start = (unsigned long)elf_header + shdrs[exec_sh_idx].sh_offset;
-    unsigned long init_text_start = (unsigned long)elf_header + shdrs[init_text_sh_idx].sh_offset;
+    unsigned long exec_start = (unsigned long)elf_header + shdrs[exec_sh_idx].sh_addr + shdrs[exec_sh_idx].sh_offset;
+    unsigned long init_text_start = (unsigned long)elf_header + shdrs[init_text_sh_idx].sh_addr + shdrs[init_text_sh_idx].sh_offset;
     res->code_start = exec_start;
     printf("Code start = %lx\n", res->code_start);
     unsigned long init_text_len = shdrs[init_text_sh_idx].sh_size;
@@ -362,13 +375,19 @@ static int load_elf_code_ko(const char *file_name, struct ElfCode *res) {
     printf("Code len = %lx\n", res->code_len);
     res->entry_offset = init_text_start - exec_start;
 
+    unsigned long loadable_start, loadable_end;
+    loadable_start = shdrs[exec_sh_idx].sh_addr + shdrs[exec_sh_idx].sh_offset;
+
     for (sh_idx = shnum - 1; sh_idx >= 0; sh_idx --) {
         if (shdrs[sh_idx].sh_type == SHT_PROGBITS && shdrs[sh_idx].sh_flags == (SHF_ALLOC | SHF_EXECINSTR)) {
             break;
         }
     }
+
     assert(sh_idx >= 0);
-    res->loadable_size = shdrs[sh_idx].sh_size;
+    loadable_end = shdrs[sh_idx].sh_addr + shdrs[sh_idx].sh_offset + shdrs[sh_idx].sh_size;
+    assert(loadable_end > loadable_start);
+    res->loadable_size = loadable_end - loadable_start;
     printf("Loadable size = %lu\n", res->loadable_size);
 
     return 0;
@@ -457,8 +476,14 @@ dom_id_t create_dom_ko(const char *c_path, const char *s_path) {
     
     if(s_path) {
         struct ElfCode s_code;
-        // retval = load_elf_code_ko(s_path, &s_code);
-        retval = load_elf_code(s_path, &s_code);
+        /* Dispatch on the S-mode image's ELF type (Phase B item 4, 2026-09-08). The QEMU line
+           built the S-mode part as a relocatable .ko and loaded it with load_elf_code_ko; the
+           board line's 2026-05 change switched this call to the PT_LOAD loader for its own,
+           linked S-mode images. The unified tree took the board form, so under QEMU the .ko
+           reported "Found 0 segments" and create_dom_ko returned -1 (null-blk split suite).
+           Both image shapes are legitimate; the type says which loader. */
+        retval = elf_is_relocatable(s_path) ? load_elf_code_ko(s_path, &s_code)
+                                            : load_elf_code(s_path, &s_code);
         if(retval)
             goto c_code_cleanup;
         res = create_dom_from_elf(&c_code, &s_code);
