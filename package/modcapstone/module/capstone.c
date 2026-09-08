@@ -27,7 +27,15 @@
 #define SUCCESS 0
 
 
-#define MAX_REGION_N 64
+/* M-2 (ISSUES.md; monitor-unification.md Phase B item 9, 2026-09-08): this mirror of the monitor's
+   region table must hold every slot the monitor can hand out -- CAPSTONE_MAX_REGION_N is 96 on both
+   targets since Phase B item 3 -- AND the copy below is bounded, because the previous 64-entry array
+   was filled past its end by probe_regions() with no check (silently: the overrun is read back
+   through the same out-of-bounds index, so no ioctl ever saw it). Overridable with -DMAX_REGION_N
+   only for the bound's positive control (built at 64, the module must REFUSE ids >= 64 and warn). */
+#ifndef MAX_REGION_N
+#define MAX_REGION_N 96
+#endif
 
 struct RegionInfo {
 	region_id_t region_id; /* TODO: it is now assumed that region_id is the same as the index in regions[] */
@@ -226,6 +234,9 @@ static void ioctl_create_region(struct ioctl_region_create_args* __user args) {
 		if(region_n <= m_args.region_id) {
 			pr_alert("Failed to fetch information about the newly created region.\n");
 		}
+	} else if(region_n >= MAX_REGION_N) {
+		pr_warn_once("capstone: region %lu not mirrored, module table full at %d (M-2)\n",
+			(unsigned long)m_args.region_id, MAX_REGION_N);
 	} else {
 		regions[region_n].region_id = m_args.region_id;
 		regions[region_n].base_paddr = __pa(vaddr);
@@ -300,6 +311,11 @@ static void probe_regions(void) {
 	struct sbiret sbi_res = sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_COUNT,
 			0, 0, 0, 0, 0, 0);
 	int new_region_n = sbi_res.value;
+	if(new_region_n > MAX_REGION_N) {
+		pr_warn_once("capstone: monitor reports %d regions, this module tracks at most %d; ids >= %d are not mirrored (M-2)\n",
+			new_region_n, MAX_REGION_N, MAX_REGION_N);
+		new_region_n = MAX_REGION_N;
+	}
 	while(region_n < new_region_n) {
 		/* query information about the region */
 		regions[region_n].region_id = region_n;
