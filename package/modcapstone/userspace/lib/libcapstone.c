@@ -562,6 +562,15 @@ void revoke_region(region_id_t region_id) {
     ioctl(dev_fd, IOCTL_REGION_REVOKE, (unsigned long)&args);
 }
 
+int release_region(region_id_t region_id) {
+    struct ioctl_region_release_args args = {
+        .region_id = region_id,
+        .retval = (unsigned)-1
+    };
+    ioctl(dev_fd, IOCTL_REGION_RELEASE, (unsigned long)&args);
+    return args.retval == 0 ? 0 : args.retval == 1 ? 1 : -1; /* 1: revoked, the slot kept */
+}
+
 void *map_region(region_id_t region_id, unsigned long len) {
     while(region_n <= region_id) {
         struct ioctl_region_query_args region_query_args;

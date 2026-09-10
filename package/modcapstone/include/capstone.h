@@ -52,6 +52,10 @@ struct ioctl_region_revoke_args {
     region_id_t region_id;
     unsigned retval;
 };
+struct ioctl_region_release_args {
+    region_id_t region_id;
+    unsigned retval; /* 0: revoked, popped and freed; 1: revoked, the slot kept; else refused, see dmesg */
+};
 
 struct ioctl_region_share_child_args {
     dom_id_t dom_id;
@@ -83,5 +87,6 @@ struct ioctl_dom_sched_args {
 #define IOCTL_REGION_SHARE_ANNOTATED          _IOWR(IOC_MAGIC, 7, struct ioctl_region_share_annotated_args)
 #define IOCTL_REGION_REVOKE          _IOWR(IOC_MAGIC, 8, struct ioctl_region_revoke_args)
 #define IOCTL_REGION_SHARE_CHILD     _IOWR(IOC_MAGIC, 9, struct ioctl_region_share_child_args)
+#define IOCTL_REGION_RELEASE         _IOWR(IOC_MAGIC, 10, struct ioctl_region_release_args)
 
 #endif
