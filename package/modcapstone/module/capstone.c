@@ -356,6 +356,12 @@ static void ioctl_release_region(struct ioctl_region_release_args* __user args) 
 	dma_free_pages(&region_dev->dev, PAGE_ALIGN(r->len), r->pages,
 		       (dma_addr_t)r->base_paddr, DMA_BIDIRECTIONAL);
 	r->pages = NULL;
+	/* Hand the offset window back too. Only the newest region reaches here, so its
+	   window is the top one and restoring it undoes exactly what creating it did: a
+	   region under MAP_SIZE_LIMIT advanced pre_mmap_offset past its own start, one at
+	   or above never advanced it at all and this assignment is then a no-op. Without
+	   it the offset space leaks monotonically across create/release cycles. */
+	pre_mmap_offset = r->mmap_offset;
 	r->len = 0;
 	region_n--;
 	m_args.retval = 0;
