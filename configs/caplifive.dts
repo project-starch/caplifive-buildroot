@@ -45,6 +45,35 @@
        and calculate_memory.py prints the pair to paste. */
     reg = <0x0 0x80000000 0x0 0x3c2d2000>;
   };
+
+  /* CMA, so a capability region can exceed the buddy allocator's largest block (MAX_ORDER 10 x
+     4 KiB = 4 MiB). Proven on QEMU 2026-09-11: 8 MiB fails to CREATE without an area and succeeds
+     with one, and a 130 MiB region maps and round-trips its first and last byte.
+     THREE PROPERTIES HERE ARE LOAD-BEARING:
+       linux,cma-default  -- modcapstone registers its device with platform_device_register_simple
+                             and no DT node, so dev->cma_area is never set and dma_alloc_contiguous
+                             falls through to dma_contiguous_default_area. ONLY a node carrying this
+                             property sets that. Without it the area exists and nothing can reach it.
+       reusable           -- required; kernel/dma/contiguous.c rejects the node without it, and
+                             it is what lets movable pages use the area while no region holds it.
+       no `no-map`        -- its presence is rejected outright.
+     THE AREA SITS INSIDE memory@80000000 AND DOES NOT EXTEND IT. There are only 3373 bytes of slack
+     between that node's top and the RTL's CAP_TAG_MEM_BASE (0xBC2D2D2D); growing the memory node is
+     what handed Linux tag memory as RAM in Aug 2026 and cost two boots.
+       base 0xAC000000, size 0x10000000 (256 MiB), ending at 0xBC000000 -- 4 MiB aligned, which
+       CMA_MIN_ALIGNMENT (PAGE_SIZE * pageblock_nr_pages) requires, and 2.8 MiB clear of the top. */
+  reserved-memory {
+    #address-cells = <2>;
+    #size-cells = <2>;
+    ranges;
+    capstone_cma: linux,cma@ac000000 {
+      compatible = "shared-dma-pool";
+      reusable;
+      linux,cma-default;
+      reg = <0x0 0xac000000 0x0 0x10000000>;
+    };
+  };
+
   leds {
     compatible = "gpio-leds";
     heartbeat-led {
