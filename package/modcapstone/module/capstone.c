@@ -520,8 +520,16 @@ static int device_mmap(struct file *filp, struct vm_area_struct *vma) {
 	for(i = 0; i < region_n &&
 		!(regions[i].len < MAP_SIZE_LIMIT && vm_offset >= regions[i].mmap_offset && vm_offset + vm_size <= regions[i].mmap_offset + regions[i].len);
 		i ++);
-	if(i >= region_n)
+	if(i >= region_n) {
+		/* Say which of the two it was. An offset that matches no region and a region that is at
+		   or above MAP_SIZE_LIMIT both land here as a bare -EINVAL, and mmap turns both into
+		   MAP_FAILED with nothing in the log to tell them apart. */
+		pr_warn("capstone: mmap refused: offset %lx size %lx matches no mappable region "
+			"(a region at or above the %lx-byte limit is never mappable)\n",
+			(unsigned long)vm_offset, (unsigned long)vm_size,
+			(unsigned long)MAP_SIZE_LIMIT);
 		return -EINVAL;
+	}
 	struct RegionInfo *region_info = &regions[i];
 
 	remap_pfn_range(vma, vma->vm_start,

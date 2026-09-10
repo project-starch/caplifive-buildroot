@@ -16,7 +16,13 @@
 #define EM_CAPSTONE 259
 #endif
 
-#define MAX_REGION_N 64
+/* Must match the MODULE's table, which is 96 (module/capstone.c:39) and was raised there for
+   exactly the overrun this used to have: the probe loop below indexes region_mmap_offsets[] and
+   region_mmappable[] by region id with no bound, so any id at or above this number wrote past both
+   arrays. 64 against the module's 96 left a 32-slot window in which the module answers the query
+   happily and the library corrupts itself with the answer. The loop is bounded as well, because
+   matching a constant is not a guard. */
+#define MAX_REGION_N 96
 #define MAP_SIZE_LIMIT 0x10000000
 #define DEBUG_COUNTER_SWITCH_U 0
 /* Guarded, matching the caplifive-system copy. `.insn r 0x5b, 0x1, 0x45` is QEMU's
@@ -572,6 +578,11 @@ int release_region(region_id_t region_id) {
 }
 
 void *map_region(region_id_t region_id, unsigned long len) {
+    if(region_id >= MAX_REGION_N) {
+        fprintf(stderr, "capstone: map_region: id %lu is at or above the library's table of %d\n",
+                (unsigned long)region_id, MAX_REGION_N);
+        return NULL;
+    }
     while(region_n <= region_id) {
         struct ioctl_region_query_args region_query_args;
         region_query_args.region_id = region_n;
@@ -584,6 +595,14 @@ void *map_region(region_id_t region_id, unsigned long len) {
         ++ region_n;
     }
     if(!region_mmappable[region_id]) {
+        /* Say it. A region at or above MAP_SIZE_LIMIT is creatable and shareable and simply cannot
+           be mapped, and until now both sides returned nothing at all -- the same silence that had
+           a CREATE failure recorded as a map failure in three documents. CMA makes this reachable:
+           regions above 4 MiB now exist, so the 256 MiB wall is a wall someone will meet. */
+        fprintf(stderr, "capstone: map_region: region %lu is %s and cannot be mapped "
+                        "(MAP_SIZE_LIMIT is %lu bytes)\n",
+                (unsigned long)region_id, "at or above the mapping limit",
+                (unsigned long)MAP_SIZE_LIMIT);
         return NULL;
     }
     return mmap(NULL, len, PROT_READ | PROT_WRITE, MAP_SHARED,
