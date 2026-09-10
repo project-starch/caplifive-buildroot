@@ -228,12 +228,24 @@ static void ioctl_create_region(struct ioctl_region_create_args* __user args) {
 
 	if (!region_dev) {
 		pr_alert("capstone: no region device, cannot allocate a region\n");
+		m_args.region_id = (region_id_t)-1;
+		copy_to_user(args, &m_args, sizeof(struct ioctl_region_create_args));
 		return;
 	}
 	/* zeroed, physically contiguous, cached: CMA above the buddy limit, buddy below it */
 	pages = dma_alloc_pages(&region_dev->dev, size, &dma, DMA_BIDIRECTIONAL, GFP_KERNEL);
 	if(!pages) {
 		pr_alert("Failed to allocate memory region of %zu bytes (above 4 MiB it needs a CMA area: cma= on the kernel command line).\n", size);
+		/* REPORT THE FAILURE. Returning without copy_to_user leaves the caller's own
+		 * pre-initialised .region_id = -1 in ITS buffer and tells it nothing -- so
+		 * create_region() hands back ULONG_MAX silently, map_region() then walks ids
+		 * upward and returns NULL, and the failure surfaces as "map_region failed".
+		 * That mislabelled the 64 MiB measurement in three committed documents: it was
+		 * always a CREATE failure at the buddy allocator's order-10 wall, never a map
+		 * one. The sbi_res.error path below already did this correctly; these two did
+		 * not. */
+		m_args.region_id = (region_id_t)-1;
+		copy_to_user(args, &m_args, sizeof(struct ioctl_region_create_args));
 		return;
 	}
 	paddr = page_to_phys(pages);
