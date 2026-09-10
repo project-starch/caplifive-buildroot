@@ -15,6 +15,8 @@ void shared_region_annotated(dom_id_t dom_id, region_id_t region_id, unsigned lo
 void share_child_region(dom_id_t dom_id, region_id_t parent_id, unsigned long offset, unsigned long len, unsigned long annotation_perm);
 void share_region(dom_id_t dom_id, region_id_t region_id);
 void revoke_region(region_id_t region_id);
+/* revoke a region of ours; 0: popped and freed as well, 1: kept below a slot the monitor holds, -1: refused */
+int release_region(region_id_t region_id);
 void *map_region(region_id_t region_id, unsigned long len);
 void probe_regions(void);
 int region_count(void);

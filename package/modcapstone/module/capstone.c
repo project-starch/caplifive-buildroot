@@ -12,6 +12,8 @@
 #include <linux/fs.h>
 #include <linux/version.h>
 #include <linux/miscdevice.h>
+#include <linux/dma-mapping.h>
+#include <linux/platform_device.h>
 #include <asm/sbi.h>
 #include <asm/errno.h>
 #include <asm/string.h>
@@ -42,7 +44,20 @@ struct RegionInfo {
 	unsigned long base_paddr;
 	size_t len;
 	size_t mmap_offset;
+	struct page *pages; /* the memory, when this module allocated it; NULL for a region mirrored from the monitor */
 };
+
+/*
+ * A region is one physically contiguous block: the domain addresses it through one
+ * capability, without page tables. Below the buddy allocator's largest block (4 MiB,
+ * MAX_ORDER 11) __get_free_pages served; a pool for a database benchmark wants a
+ * hundred times that. dma_alloc_pages() takes such a block from the CMA area the
+ * kernel reserved at boot (cma= on the command line, a reserved-memory node in the
+ * device tree) and falls back to the buddy allocator below its limit, so every region
+ * takes the one path. The pages keep their ordinary cached kernel mapping, as before;
+ * the device exists only to carry the DMA mask the allocator asks for.
+ */
+static struct platform_device *region_dev;
 
 static size_t pre_mmap_offset;
 static struct RegionInfo regions[MAX_REGION_N];
@@ -206,21 +221,29 @@ static void ioctl_create_region(struct ioctl_region_create_args* __user args) {
 	struct ioctl_region_create_args m_args;
 	copy_from_user(&m_args, args, sizeof(struct ioctl_region_create_args));
 
-	unsigned long n_pages = (m_args.len - 1) / PAGE_SIZE + 1;
-	unsigned long n_pages_log2 = n_pages == 1 ? 0 : (ilog2(n_pages - 1) + 1);
+	size_t size = PAGE_ALIGN(m_args.len);
+	dma_addr_t dma;
+	struct page *pages;
+	unsigned long paddr;
 
-	unsigned long vaddr = (unsigned long)__get_free_pages(GFP_HIGHUSER | __GFP_ZERO, n_pages_log2);
-	if(!vaddr) {
-		pr_alert("Failed to allocate memory region.\n");
+	if (!region_dev) {
+		pr_alert("capstone: no region device, cannot allocate a region\n");
 		return;
 	}
+	/* zeroed, physically contiguous, cached: CMA above the buddy limit, buddy below it */
+	pages = dma_alloc_pages(&region_dev->dev, size, &dma, DMA_BIDIRECTIONAL, GFP_KERNEL);
+	if(!pages) {
+		pr_alert("Failed to allocate memory region of %zu bytes (above 4 MiB it needs a CMA area: cma= on the kernel command line).\n", size);
+		return;
+	}
+	paddr = page_to_phys(pages);
 
 	struct sbiret sbi_res = sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_CREATE,
-				__pa(vaddr), m_args.len, 0, 0, 0, 0);
+				paddr, m_args.len, 0, 0, 0, 0);
 	if (sbi_res.error) {
-		free_pages(vaddr, n_pages_log2);
-		pr_err("REGION_CREATE failed: len=%lu vaddr=%lx paddr=%lx error=%ld value=%ld\n",
-			m_args.len, vaddr, __pa(vaddr), sbi_res.error, sbi_res.value);
+		dma_free_pages(&region_dev->dev, size, pages, dma, DMA_BIDIRECTIONAL);
+		pr_err("REGION_CREATE failed: len=%lu paddr=%lx error=%ld value=%ld\n",
+			m_args.len, paddr, sbi_res.error, sbi_res.value);
 		m_args.region_id = (region_id_t)-1;
 		copy_to_user(args, &m_args, sizeof(struct ioctl_region_create_args));
 		return;
@@ -230,18 +253,23 @@ static void ioctl_create_region(struct ioctl_region_create_args* __user args) {
 	if(region_n > m_args.region_id) {
 		pr_alert("Region ID reuse detected.\n");
 	} else if(region_n != m_args.region_id) {
+		/* the monitor took a slot for the remainder it split off, so the new region's
+		   id is past ours: mirror the slots between, then remember our pages */
 		probe_regions();
 		if(region_n <= m_args.region_id) {
 			pr_alert("Failed to fetch information about the newly created region.\n");
+		} else if (m_args.region_id < MAX_REGION_N) {
+			regions[m_args.region_id].pages = pages;
 		}
 	} else if(region_n >= MAX_REGION_N) {
 		pr_warn_once("capstone: region %lu not mirrored, module table full at %d (M-2)\n",
 			(unsigned long)m_args.region_id, MAX_REGION_N);
 	} else {
 		regions[region_n].region_id = m_args.region_id;
-		regions[region_n].base_paddr = __pa(vaddr);
+		regions[region_n].base_paddr = paddr;
 		regions[region_n].len = m_args.len;
 		regions[region_n].mmap_offset = pre_mmap_offset;
+		regions[region_n].pages = pages;
 		/* We need to round up to page size due to the limitation of mmap */
 		if(m_args.len < MAP_SIZE_LIMIT) {
 			pre_mmap_offset = round_up(pre_mmap_offset + regions[region_n].len, PAGE_SIZE);
@@ -261,6 +289,66 @@ static void ioctl_revoke_region(struct ioctl_region_revoke_args* __user args) {
 	m_args.retval = sbi_res.value;
 
 	copy_to_user(args, &m_args, sizeof(struct ioctl_region_revoke_args));
+}
+
+/*
+ * Give a region back: the monitor revokes what the domain derived from it and pops
+ * its slot, then the memory returns to the kernel. Only the newest region can go,
+ * because the monitor's table is a stack; a caller that made a pool and its tables
+ * releases them in the reverse order. A region the monitor gave away outright
+ * (REV_TRANSFERRED) has no handle to revoke and stays, as it did before; a region
+ * shared REV_BORROWED or REV_SHARED comes back whole.
+ */
+static void ioctl_release_region(struct ioctl_region_release_args* __user args) {
+	struct ioctl_region_release_args m_args;
+	struct sbiret sbi_res;
+	struct RegionInfo *r;
+
+	copy_from_user(&m_args, args, sizeof(struct ioctl_region_release_args));
+	m_args.retval = (unsigned)-1;
+	if (m_args.region_id >= region_n || m_args.region_id >= MAX_REGION_N) {
+		pr_warn("capstone: release refused, region %lu is not mirrored here\n",
+			(unsigned long)m_args.region_id);
+		goto out;
+	}
+	r = &regions[m_args.region_id];
+	if (!r->pages) {
+		pr_warn("capstone: release refused, region %lu was not allocated here\n",
+			(unsigned long)m_args.region_id);
+		goto out;
+	}
+	/* the domain's access ends here, whatever happens to the slot */
+	sbi_res = sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_REVOKE,
+			m_args.region_id, 0, 0, 0, 0, 0);
+	if (sbi_res.value != 0) {
+		pr_warn("capstone: release refused, the monitor cannot revoke region %lu\n",
+			(unsigned long)m_args.region_id);
+		goto out;
+	}
+	/* the memory goes back only with the monitor's slot, and the monitor's table is a
+	   stack: a region below a remainder slot the monitor split off stays, revoked, until
+	   the slots above it are gone. Refusing to free here is what keeps one owner per page. */
+	if (m_args.region_id != region_n - 1) {
+		pr_info("capstone: region %lu revoked, kept: %d slot(s) above it\n",
+			(unsigned long)m_args.region_id, region_n - 1 - (int)m_args.region_id);
+		m_args.retval = 1;
+		goto out;
+	}
+	sbi_res = sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_POP, 1, 0, 0, 0, 0, 0);
+	if (sbi_res.value != 0) {
+		pr_warn("capstone: the monitor did not pop region %lu after its revoke\n",
+			(unsigned long)m_args.region_id);
+		m_args.retval = 1;
+		goto out;
+	}
+	dma_free_pages(&region_dev->dev, PAGE_ALIGN(r->len), r->pages,
+		       (dma_addr_t)r->base_paddr, DMA_BIDIRECTIONAL);
+	r->pages = NULL;
+	r->len = 0;
+	region_n--;
+	m_args.retval = 0;
+out:
+	copy_to_user(args, &m_args, sizeof(struct ioctl_region_release_args));
 }
 
 static void ioctl_share_child_region(struct ioctl_region_share_child_args* __user args) {
@@ -393,6 +481,9 @@ static long device_ioctl(struct file* file,
 		case IOCTL_REGION_SHARE_CHILD:
 			ioctl_share_child_region((struct ioctl_region_share_child_args* __user)ioctl_param);
 			break;
+		case IOCTL_REGION_RELEASE:
+			ioctl_release_region((struct ioctl_region_release_args* __user)ioctl_param);
+			break;
 		default:
 			pr_info("Unrecognised IOCTL command %u\n", ioctl_num);
 	}
@@ -447,6 +538,13 @@ static int __init capstone_init(void)
 		pr_alert("Failed to register device\n");
 		return retval;
 	}
+	region_dev = platform_device_register_simple("capstone-regions", -1, NULL, 0);
+	if (IS_ERR(region_dev)) {
+		pr_alert("capstone: no region device (%ld)\n", PTR_ERR(region_dev));
+		region_dev = NULL;
+	} else if (dma_coerce_mask_and_coherent(&region_dev->dev, DMA_BIT_MASK(64))) {
+		pr_alert("capstone: the region device takes no 64-bit DMA mask\n");
+	}
 
 	region_n = 0;
 	pre_mmap_offset = 0;
@@ -456,6 +554,8 @@ static int __init capstone_init(void)
 
 static void __exit capstone_exit(void)
 {
+	if (region_dev)
+		platform_device_unregister(region_dev);
 	misc_deregister(&capstone_dev);
 }
 
