@@ -141,7 +141,15 @@ static void ioctl_create_dom(struct ioctl_dom_create_args* __user args) {
 
 	unsigned long dom_paddr = __pa(dom_vaddr);
 	// TODO: do we still need to do this on page granularity?
-	pr_info("Domain memory region vaddr = %lx, paddr = %lx\n", dom_vaddr, dom_paddr);
+	/* NOT a capability region, and the old wording said it was. This is the buddy-allocator
+	   block holding the domain's code, heap and stack -- the __get_free_pages above. Capability
+	   regions are the separate dma_alloc_pages allocations in ioctl_create_region, and on a
+	   CMA-enabled board those come out of the reserved area while THIS one never can:
+	   GFP_HIGHUSER carries no __GFP_MOVABLE, so the block is MIGRATE_UNMOVABLE and ALLOC_CMA is
+	   never set for it. Calling it a "region" cost a retracted claim on 2026-09-11, when six
+	   capability-region base addresses inside the CMA range were read as the domain's own memory
+	   having moved there. The name was the whole of the confusion. */
+	pr_info("Domain block (buddy, NOT a capability region) vaddr = %lx, paddr = %lx\n", dom_vaddr, dom_paddr);
 	pr_info("code size = %lu, tot_size = %lx, entry_offset = %lx\n", m_args.code_len, (1 << dom_pages_log2) * PAGE_SIZE, m_args.entry_offset);
 
 	copy_from_user((void*)dom_vaddr, m_args.code_begin, m_args.code_len);
@@ -176,7 +184,7 @@ static void ioctl_create_dom(struct ioctl_dom_create_args* __user args) {
 			return;
 		}
 
-		pr_info("Domain S-mode region vaddr = %lx, paddr = %lx\n", dom_s_load_vaddr, __pa(dom_s_load_vaddr));
+		pr_info("Domain S-mode block vaddr = %lx, paddr = %lx\n", dom_s_load_vaddr, __pa(dom_s_load_vaddr));
 
 		copy_from_user((void*)dom_s_load_vaddr, m_args.s_load_begin, m_args.s_load_len);
 		memset((void*)(dom_s_load_vaddr + m_args.s_load_len), 0, dom_s_load_actual_size - m_args.s_load_len);
