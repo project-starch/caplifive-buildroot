@@ -340,7 +340,13 @@ static void ioctl_release_region(struct ioctl_region_release_args* __user args) 
 	/* the domain's access ends here, whatever happens to the slot */
 	sbi_res = sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_REVOKE,
 			m_args.region_id, 0, 0, 0, 0, 0);
-	if (sbi_res.value != 0) {
+	/* 2 is "nothing to revoke" (M-6): the region was never shared with a retaining share, so the
+	   monitor holds the only capability and there is nothing outstanding to invalidate. That is
+	   permission to pop, not a failure -- releasing a SHARED region reaches the same pop after its
+	   revoke succeeds, so this makes the never-shared case behave like the case that already
+	   ships. Before the guard existed the ecall did not return at all: csrevoke aborted QEMU and
+	   raised UNEXPECTED_CAP_TYPE inside M-mode on silicon. */
+	if (sbi_res.value != 0 && sbi_res.value != 2) {
 		pr_warn("capstone: release refused, the monitor cannot revoke region %lu\n",
 			(unsigned long)m_args.region_id);
 		goto out;
