@@ -225,9 +225,59 @@ static void ioctl_call_dom(struct ioctl_dom_call_args* __user args) {
 
 static void probe_regions(void);
 
+/* R-33: THE COMPRESSED BOUNDS ENCODING IS LOSSY, AND THE ALLOCATOR MUST HAND OUT REPRESENTABLE
+ * OBJECTS. A capability's bounds are re-encoded the moment its cursor leaves base
+ * (ariane_pkg.sv:787 picks an exact form only while cursor == the low bound), and the lossy form
+ * rounds the TOP UP to a 2^(E+3) granule (:827-828) where E = bit_length(len) - 1 - 12. The
+ * hardware then uses that widened end as the AUTHORITY bound -- STC checks cursor+imm against
+ * end-16 -- so a region whose length is not a granule multiple grants stores past its own
+ * allocation. Demonstrated in RTL simulation: a representable control's store at its true end is
+ * refused OUT_OF_BOUNDS, a non-representable one's is accepted (r33-store-past-end.S).
+ *
+ * This is the standard contract for a compressed-bounds format and it was simply never enforced
+ * here: create_region passed the requested length straight through. Rounding the request up at
+ * creation makes every region representable by construction.
+ *
+ * WHY HERE AND NOT IN THE MONITOR, which is the last layer that could do it: the monitor cannot
+ * grow the backing allocation. dma_alloc_pages has already run by then, with PAGE_ALIGN of the
+ * UNROUNDED request, so a monitor-side round-up would carve pages the kernel never handed out --
+ * silently aliasing a later allocation that falls inside the over-carve, or wedging on SPLA if one
+ * straddles it. This function owns both the allocation and the ecall length, so it is the only
+ * place the two stay consistent. */
+static unsigned long capstone_repr_granule(unsigned long len)
+{
+	/* Below 4096 the encoder takes its exact branch (E == 0 and bit 12 clear), granule 1. */
+	if (len < 4096)
+		return 1UL;
+	return 1UL << (ilog2(len) - 9);
+}
+
+static unsigned long capstone_repr_round(unsigned long len)
+{
+	unsigned long r = round_up(len, capstone_repr_granule(len));
+
+	/* One pass suffices -- r <= 2^(hb+1), and if it lands exactly there the new granule
+	 * 2^(hb-8) still divides it -- but re-check rather than argue it, because the cost is a
+	 * modulo and the failure mode is a region that is still not representable. */
+	if (r % capstone_repr_granule(r))
+		r = round_up(r, capstone_repr_granule(r));
+	return r;
+}
+
 static void ioctl_create_region(struct ioctl_region_create_args* __user args) {
 	struct ioctl_region_create_args m_args;
+	unsigned long requested_len;
 	copy_from_user(&m_args, args, sizeof(struct ioctl_region_create_args));
+
+	/* R-33: make the region representable BEFORE anything else sees the length, so the
+	 * allocation, the ecall and the mirrored bookkeeping all agree on one number. Reported
+	 * rather than silent: a geometry change nobody can see in a log is how a measurement
+	 * corpus drifts. */
+	requested_len = m_args.len;
+	m_args.len = capstone_repr_round(m_args.len);
+	if (m_args.len != requested_len)
+		pr_info("capstone: region length %lu is not representable in the compressed bounds encoding (granule %lu); rounded up to %lu -- R-33\n",
+			requested_len, capstone_repr_granule(requested_len), m_args.len);
 
 	size_t size = PAGE_ALIGN(m_args.len);
 	dma_addr_t dma;
@@ -257,6 +307,16 @@ static void ioctl_create_region(struct ioctl_region_create_args* __user args) {
 		return;
 	}
 	paddr = page_to_phys(pages);
+
+	/* A region is representable only if BOTH its length and its base are granule multiples:
+	 * the encoder truncates the base DOWNWARD with no round-up (ariane_pkg.sv:825), the mirror
+	 * of what it does to the top. Rounding the length cannot fix a misaligned base, and nothing
+	 * in this driver can -- the alignment comes from CONFIG_CMA_ALIGNMENT, which happens to
+	 * satisfy this for every region under 512 MiB on the current config. That is an accident of
+	 * configuration, not an invariant, so say so out loud if it ever stops holding. */
+	if (paddr % capstone_repr_granule(m_args.len))
+		pr_warn("capstone: region base %lx is NOT granule-aligned (granule %lu); its base can read LOW as well as its end high -- R-33\n",
+			paddr, capstone_repr_granule(m_args.len));
 
 	struct sbiret sbi_res = sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_CREATE,
 				paddr, m_args.len, 0, 0, 0, 0);
