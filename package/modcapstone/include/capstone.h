@@ -20,7 +20,15 @@ struct ioctl_dom_create_args {
     size_t s_entry_offset;
     size_t s_size;
     dom_id_t dom_id;
-    // TODO: pass info about the required data region size
+    /* The domain's DECLARED resource requirement, from .capstone_domreq in the image.
+     * Both zero means the image declares nothing and the module keeps its historical
+     * rule, so every domain built before this behaves exactly as it used to.
+     *
+     * APPENDED, never inserted. The module copies sizeof(its own struct) from user, so
+     * a loader built with these fields and a module built without simply drops them.
+     * That is what lets the loader land before the module does. */
+    size_t domreq_data;      /* bytes dom_data must hold, all four parts together */
+    size_t domreq_stack;     /* how much of that is stack; diagnostics only */
 };
 
 struct ioctl_dom_call_args {
