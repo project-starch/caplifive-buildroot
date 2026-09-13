@@ -24,6 +24,10 @@
 #define DEVICE_FILE_NAME "capstone"
 
 #define DOMAIN_DATA_SIZE (4096 * 16)
+/* The monitor's seal region plus the two roundings create_domain applies to the
+   code/data split. NOT DOMAIN_DATA_SIZE above: that is this file's constant and the
+   monitor's same-named one is 1536. Conflating the two has cost a session before. */
+#define MONITOR_SPLIT_SLACK (8 * 1024)
 #define MAP_SIZE_LIMIT 0x10000000
 
 #define SUCCESS 0
@@ -127,9 +131,32 @@ static void ioctl_create_dom(struct ioctl_dom_create_args* __user args) {
 	 * below 64 KiB keeps exactly the headroom, page count and order it had before, so every
 	 * existing ladder rung's geometry -- and the published numbers taken with it -- is
 	 * byte-identical. Only images larger than 64 KiB see any difference at all. */
+	/* SIZE FROM THE DECLARATION WHEN THERE IS ONE.
+	 *
+	 * The fallback below funds dom_data out of the CODE size, which holds only while
+	 * text >= cap table + carved storage + stack. SQLite satisfies it with 2.2 MB of
+	 * text against a modest carve. MicroPython does not: 390 KB of text against about
+	 * 500 KB of storage, because its GC heap is a 384 KiB global and under gp-captable a
+	 * global's storage comes out of dom_data. Measured over seven test-table sizes, two
+	 * came up 68,864 and 125,296 bytes short; the entry glue's carve then ran past the
+	 * globals blob the monitor had copied to the front of dom_data, and since
+	 * .capstone_cap_init is the LAST thing in that blob the domain read a destroyed table
+	 * and jumped through it. Neither fault looked like a budget problem.
+	 *
+	 * A declaring image states what dom_data must hold, all four parts together, so the
+	 * rule stops guessing. One region, not two: two are the right answer for an image
+	 * whose single power-of-two block would pass the allocator's order ceiling, and that
+	 * needs the monitor to take a second base, which DOM_CREATE has spare arguments for.
+	 *
+	 * An image that declares nothing keeps the old rule byte for byte. */
 	unsigned long dom_headroom = m_args.code_len > DOMAIN_DATA_SIZE
 	                                 ? m_args.code_len : DOMAIN_DATA_SIZE;
 	unsigned long dom_tot_size = m_args.code_len + dom_headroom;
+	if (m_args.domreq_data) {
+		dom_tot_size = m_args.code_len + MONITOR_SPLIT_SLACK + m_args.domreq_data;
+		pr_info("domain declares dom_data >= %lu (stack %lu); sizing the region from it\n",
+			m_args.domreq_data, m_args.domreq_stack);
+	}
 	unsigned long dom_pages = (dom_tot_size - 1) / PAGE_SIZE + 1;
 	unsigned long dom_pages_log2 = dom_pages == 1 ? 0 : (ilog2(dom_pages - 1) + 1);
 

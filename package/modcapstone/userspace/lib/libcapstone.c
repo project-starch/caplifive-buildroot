@@ -56,6 +56,7 @@ struct ElfCode {
     unsigned long code_start, code_len;
     unsigned long loadable_size;
     off_t size, entry_offset;
+    unsigned long domreq_data, domreq_stack;   /* 0 = the image declares nothing */
 };
 
 static int dev_fd;
@@ -233,6 +234,56 @@ static int load_elf_code(const char *file_name, struct ElfCode *res) {
      * the section is already KEEP'd and this avoids a symtab walk. Absent section => 0
      * => the monitor keeps its historical 0x1000 default, so a domain built before this
      * behaves exactly as it used to. */
+    /* THE DOMAIN'S DECLARED REQUIREMENT, from .capstone_domreq.
+     *
+     * WHY A STRUCT FIELD AND NOT A PACKING. globals_off above is packed into
+     * entry_offset precisely so the module stays a pure conduit and needs no rebuild.
+     * That trick does not extend here: the module has to INSPECT this to size the
+     * allocation, so it changes anyway, and entry_offset's two halves are both spoken
+     * for. The fields are APPENDED to ioctl_dom_create_args, so a module built without
+     * them copies its own smaller sizeof and drops them, which is what lets this land
+     * before the module does.
+     *
+     * THE SECTION IS NON-ALLOC, so it exists in the FILE and never in the loaded image.
+     * It is read here through sh_offset for the same reason .capstone_gp_initdesc is
+     * read through the section headers: the mapping is already open and this costs the
+     * domain zero bytes. An image that does not declare leaves both fields 0.
+     *
+     * A WRONG MAGIC IS NOT SILENCE. A section of the right name and the wrong contents
+     * means a stale or mismatched domreq.S, and treating that as "declares nothing"
+     * would hand the module the old rule for an image whose build believes otherwise.
+     * It is reported and treated as absent, so the failure is loud and the behaviour
+     * is still the safe one. */
+    unsigned long domreq_data = 0, domreq_stack = 0;
+    if (elf_header->e_shoff && elf_header->e_shstrndx < elf_header->e_shnum) {
+        Elf64_Shdr *dshdrs = (Elf64_Shdr*)(((void*)elf_header) + elf_header->e_shoff);
+        const char *dshstr = (const char*)(((void*)elf_header)
+                                           + dshdrs[elf_header->e_shstrndx].sh_offset);
+        for (int sh = 0; sh < elf_header->e_shnum; sh++) {
+            if (strcmp(dshstr + dshdrs[sh].sh_name, ".capstone_domreq"))
+                continue;
+            if (dshdrs[sh].sh_size < 24) {
+                fprintf(stderr, "capstone_domreq is %lu bytes, expected at least 24; "
+                        "treating the image as undeclared\n",
+                        (unsigned long)dshdrs[sh].sh_size);
+                break;
+            }
+            unsigned long *q = (unsigned long*)(((void*)elf_header) + dshdrs[sh].sh_offset);
+            if (q[0] != 0x5145524d4f445043UL) {
+                fprintf(stderr, "capstone_domreq magic is %lx, expected 5145524d4f445043; "
+                        "treating the image as undeclared\n", q[0]);
+                break;
+            }
+            domreq_data = q[1];
+            domreq_stack = q[2];
+            break;
+        }
+    }
+    if (domreq_data)
+        printf("Domain requirement = %lu (stack %lu)\n", domreq_data, domreq_stack);
+    else
+        printf("Domain requirement = none declared\n");
+
     unsigned long globals_off = 0;
     if (elf_header->e_shoff && elf_header->e_shstrndx < elf_header->e_shnum) {
         Elf64_Shdr *shdrs = (Elf64_Shdr*)(((void*)elf_header) + elf_header->e_shoff);
@@ -267,6 +318,8 @@ static int load_elf_code(const char *file_name, struct ElfCode *res) {
     res->code_start = (unsigned long)image_base;
     res->code_len = image_size;
     res->entry_offset = entry_off | (globals_off << 32);
+    res->domreq_data = domreq_data;
+    res->domreq_stack = domreq_stack;
     res->loadable_size = image_size;
 
     printf("Loadable size = %lu\n", res->loadable_size);
@@ -422,6 +475,8 @@ static dom_id_t create_dom_from_elf(const struct ElfCode *c_code,
         .code_begin = (void *)c_code->code_start,
         .code_len = c_code->code_len,
         .entry_offset = c_code->entry_offset,
+        .domreq_data = c_code->domreq_data,
+        .domreq_stack = c_code->domreq_stack,
         .dom_id = -1
     };
     
