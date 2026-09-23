@@ -18,6 +18,14 @@
 #include <asm/errno.h>
 #include <asm/string.h>
 #include "../include/capstone.h"
+
+/* The largest order __get_free_pages serves. MAX_ORDER became inclusive in 6.4
+   ("mm: change MAX_ORDER to be inclusive"); the QEMU kernel is 6.1, the board's 6.4. */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 4, 0)
+#define CAPSTONE_MAX_BUDDY_ORDER MAX_ORDER
+#else
+#define CAPSTONE_MAX_BUDDY_ORDER (MAX_ORDER - 1)
+#endif
 #include "capstone-sbi.h"
 
 #define DEVICE_NAME "capstone"
@@ -160,9 +168,33 @@ static void ioctl_create_dom(struct ioctl_dom_create_args* __user args) {
 	unsigned long dom_pages = (dom_tot_size - 1) / PAGE_SIZE + 1;
 	unsigned long dom_pages_log2 = dom_pages == 1 ? 0 : (ilog2(dom_pages - 1) + 1);
 
-	unsigned long dom_vaddr = (unsigned long)__get_free_pages(GFP_HIGHUSER | __GFP_ZERO, dom_pages_log2);
+	/* A domain is ONE block, because the monitor makes one capability of it
+	   (split_out_cap in create_domain), and __get_free_pages ends at
+	   CAPSTONE_MAX_BUDDY_ORDER: 4 MiB with 4 KiB pages. A block beyond that comes
+	   from the CMA area through the region device, the path shared regions have
+	   taken for up to 130 MiB. Everything the buddy allocator can serve still
+	   comes from it, so existing domains keep their geometry byte for byte.
+	   CMA aligns to CONFIG_CMA_ALIGNMENT (1 MiB), not to the block size as the
+	   buddy allocator does; the monitor rounds only for representability
+	   (granule ~64 KiB at 32 MiB), which a 1 MiB-aligned base satisfies. Like
+	   the buddy block, this one is never freed today. */
+	unsigned long dom_vaddr = 0;
+	if (dom_pages_log2 <= CAPSTONE_MAX_BUDDY_ORDER) {
+		dom_vaddr = (unsigned long)__get_free_pages(GFP_HIGHUSER | __GFP_ZERO, dom_pages_log2);
+	} else if (region_dev) {
+		size_t dom_bytes = (size_t)(1UL << dom_pages_log2) * PAGE_SIZE;
+		dma_addr_t dom_dma;
+		struct page *dom_block = dma_alloc_pages(&region_dev->dev, dom_bytes, &dom_dma,
+		                                         DMA_BIDIRECTIONAL, GFP_KERNEL);
+		if (dom_block) {
+			dom_vaddr = (unsigned long)page_address(dom_block);
+			memset((void *)dom_vaddr, 0, dom_bytes);
+			pr_info("Domain block of order %lu is beyond the buddy allocator (max %d): %zu bytes from CMA\n",
+				dom_pages_log2, CAPSTONE_MAX_BUDDY_ORDER, dom_bytes);
+		}
+	}
 	if (!dom_vaddr) {
-		pr_alert("Failed to allocate memory for domain.\n");
+		pr_alert("Failed to allocate memory for domain (order %lu).\n", dom_pages_log2);
 		return;
 	}
 
@@ -176,7 +208,8 @@ static void ioctl_create_dom(struct ioctl_dom_create_args* __user args) {
 	   never set for it. Calling it a "region" cost a retracted claim on 2026-09-11, when six
 	   capability-region base addresses inside the CMA range were read as the domain's own memory
 	   having moved there. The name was the whole of the confusion. */
-	pr_info("Domain block (buddy, NOT a capability region) vaddr = %lx, paddr = %lx\n", dom_vaddr, dom_paddr);
+	pr_info("Domain block (%s, NOT a capability region) vaddr = %lx, paddr = %lx\n",
+		dom_pages_log2 <= CAPSTONE_MAX_BUDDY_ORDER ? "buddy" : "CMA", dom_vaddr, dom_paddr);
 	pr_info("code size = %lu, tot_size = %lx, entry_offset = %lx\n", m_args.code_len, (1 << dom_pages_log2) * PAGE_SIZE, m_args.entry_offset);
 
 	copy_from_user((void*)dom_vaddr, m_args.code_begin, m_args.code_len);
