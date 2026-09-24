@@ -36,6 +36,12 @@
    code/data split. NOT DOMAIN_DATA_SIZE above: that is this file's constant and the
    monitor's same-named one is 1536. Conflating the two has cost a session before. */
 #define MONITOR_SPLIT_SLACK (8 * 1024)
+/* The monitor's own DOMAIN_DATA_SIZE (sbi_capstone.c:292-293, 16 * 96), which
+   monitor_dom_data() below mirrors. Again not this file's DOMAIN_DATA_SIZE. */
+#define MONITOR_DOMAIN_DATA_SIZE 1536UL
+/* The largest block a declared domain may be sized to: 4 GiB with 4 KiB pages. A bound on the
+   doubling below, so a corrupt .capstone_domreq is refused instead of looping. */
+#define CAPSTONE_DOM_MAX_ORDER 20
 #define MAP_SIZE_LIMIT 0x10000000
 
 #define SUCCESS 0
@@ -104,6 +110,23 @@ static ssize_t device_write(struct file *file,
 	return 0;
 }
 
+/* What dom_data receives when the monitor splits a block of tot bytes holding an image of
+   code_len bytes. It mirrors create_domain (sbi_capstone.c):
+   - code_size is rounded up to 16 (:885);
+   - repr_len = tot - code_size - DOMAIN_DATA_SIZE, and the representability granule is
+     2^(max(0, floor(log2 repr_len) - 12) + 3) (:919-929);
+   - the code/seal split and the seal/data split are each rounded up to that granule
+     (:930-933).
+   Change it together with the monitor. */
+static unsigned long monitor_dom_data(unsigned long tot, unsigned long code_len)
+{
+	unsigned long code = ALIGN(code_len, 16);
+	unsigned long repr_len = tot - code - MONITOR_DOMAIN_DATA_SIZE;
+	unsigned long hb = ilog2(repr_len);
+	unsigned long gran = 1UL << ((hb > 12 ? hb - 12 : 0) + 3);
+	return tot - ALIGN(code, gran) - ALIGN(MONITOR_DOMAIN_DATA_SIZE, gran);
+}
+
 static void ioctl_create_dom(struct ioctl_dom_create_args* __user args) {
 	struct ioctl_dom_create_args m_args;
 
@@ -167,6 +190,42 @@ static void ioctl_create_dom(struct ioctl_dom_create_args* __user args) {
 	}
 	unsigned long dom_pages = (dom_tot_size - 1) / PAGE_SIZE + 1;
 	unsigned long dom_pages_log2 = dom_pages == 1 ? 0 : (ilog2(dom_pages - 1) + 1);
+	/* MONITOR_SPLIT_SLACK is enough only up to 4 MiB. The monitor rounds both ends of the
+	   split to a granule that grows with the block (up to 64 bytes at 64 KiB, 4 KiB at 4 MiB,
+	   64 KiB at 64 MiB), and loses up to two granules. Past 4 MiB the power-of-two
+	   rounding usually covers that, but not when the declared size lands just under a
+	   power of two, and then dom_data comes out smaller than declared: the same symptom as
+	   the comment above describes (a carve past the globals blob). So check the monitor's
+	   own split and double the block until it leaves what the domain declared. A block of
+	   4 MiB or less never needs it.
+
+	   The declaration comes from the image file, unchecked beyond its magic, so a corrupt
+	   one is refused: a size sum that wraps, or a block past CAPSTONE_DOM_MAX_ORDER. */
+	bool dom_refused = false;
+	if (m_args.domreq_data) {
+		if (dom_tot_size < m_args.domreq_data || dom_tot_size < m_args.code_len) {
+			pr_alert("declared dom_data %lu with code %lu overflows; refusing the domain\n",
+				m_args.domreq_data, m_args.code_len);
+			dom_refused = true;
+		} else if (dom_pages_log2 > CAPSTONE_DOM_MAX_ORDER) {
+			pr_alert("declared dom_data %lu needs a block past order %d; refusing the domain\n",
+				m_args.domreq_data, CAPSTONE_DOM_MAX_ORDER);
+			dom_refused = true;
+		}
+		while (!dom_refused &&
+		       monitor_dom_data((1UL << dom_pages_log2) * PAGE_SIZE, m_args.code_len)
+		       < m_args.domreq_data) {
+			if (dom_pages_log2 >= CAPSTONE_DOM_MAX_ORDER) {
+				pr_alert("declared dom_data %lu needs a block past order %d; refusing the domain\n",
+					m_args.domreq_data, CAPSTONE_DOM_MAX_ORDER);
+				dom_refused = true;
+				break;
+			}
+			pr_info("declared dom_data %lu does not survive the monitor's split of order %lu; doubling\n",
+				m_args.domreq_data, dom_pages_log2);
+			dom_pages_log2++;
+		}
+	}
 
 	/* A domain is ONE block, because the monitor makes one capability of it
 	   (split_out_cap in create_domain), and __get_free_pages ends at
@@ -179,7 +238,9 @@ static void ioctl_create_dom(struct ioctl_dom_create_args* __user args) {
 	   (granule ~64 KiB at 32 MiB), which a 1 MiB-aligned base satisfies. Like
 	   the buddy block, this one is never freed today. */
 	unsigned long dom_vaddr = 0;
-	if (dom_pages_log2 <= CAPSTONE_MAX_BUDDY_ORDER) {
+	if (dom_refused) {
+		/* nothing allocated: the failure path below reports it */
+	} else if (dom_pages_log2 <= CAPSTONE_MAX_BUDDY_ORDER) {
 		dom_vaddr = (unsigned long)__get_free_pages(GFP_HIGHUSER | __GFP_ZERO, dom_pages_log2);
 	} else if (region_dev) {
 		size_t dom_bytes = (size_t)(1UL << dom_pages_log2) * PAGE_SIZE;
