@@ -10,6 +10,7 @@
 #include <sys/stat.h>
 #include <elf.h>
 #include <fcntl.h>
+#include <errno.h>
 #include "libcapstone.h"
 
 #ifndef EM_CAPSTONE
@@ -58,6 +59,10 @@ struct ElfCode {
     off_t size, entry_offset;
     unsigned long domreq_data, domreq_stack;   /* 0 = the image declares nothing */
 };
+
+static int verbose = 1;
+void capstone_set_verbose(int enabled) { verbose = !!enabled; }
+#define capstone_log(...) do { if (verbose) printf(__VA_ARGS__); } while (0)
 
 static int dev_fd;
 static size_t region_mmap_offsets[MAX_REGION_N];
@@ -125,12 +130,12 @@ static int load_elf_code(const char *file_name, struct ElfCode *res) {
         goto clean_up_mmap;
     }
 
-    printf("Ok, good file.\n");
+    capstone_log("Ok, good file.\n");
     
     Elf64_Phdr *phdrs = (Elf64_Phdr*)(((void*)elf_header) + elf_header->e_phoff);
     Elf64_Half phnum = elf_header->e_phnum;
 
-    printf("Found %lu segments\n", phnum);
+    capstone_log("Found %lu segments\n", phnum);
 
     int ph_idx;
     int exec_ph_idx = -1;
@@ -163,11 +168,11 @@ static int load_elf_code(const char *file_name, struct ElfCode *res) {
         retval = 1;
         goto clean_up_mmap;
     }
-    printf("Loadable executable segment found.\n");
-    printf("Entry address = %lx\n", elf_header->e_entry);
-    printf("Virtual address = %lx\n", phdrs[exec_ph_idx].p_vaddr);
-    printf("File offset = %lx\n", phdrs[exec_ph_idx].p_offset);
-    printf("Segment size = %lx\n", phdrs[exec_ph_idx].p_filesz);
+    capstone_log("Loadable executable segment found.\n");
+    capstone_log("Entry address = %lx\n", elf_header->e_entry);
+    capstone_log("Virtual address = %lx\n", phdrs[exec_ph_idx].p_vaddr);
+    capstone_log("File offset = %lx\n", phdrs[exec_ph_idx].p_offset);
+    capstone_log("Segment size = %lx\n", phdrs[exec_ph_idx].p_filesz);
 
     if (first_load_ph_idx == -1 || loadable_end <= loadable_start) {
         fprintf(stderr, "No PT_LOAD image to load.\n");
@@ -280,9 +285,9 @@ static int load_elf_code(const char *file_name, struct ElfCode *res) {
         }
     }
     if (domreq_data)
-        printf("Domain requirement = %lu (stack %lu)\n", domreq_data, domreq_stack);
+        capstone_log("Domain requirement = %lu (stack %lu)\n", domreq_data, domreq_stack);
     else
-        printf("Domain requirement = none declared\n");
+        capstone_log("Domain requirement = none declared\n");
 
     unsigned long globals_off = 0;
     if (elf_header->e_shoff && elf_header->e_shstrndx < elf_header->e_shnum) {
@@ -306,7 +311,7 @@ static int load_elf_code(const char *file_name, struct ElfCode *res) {
         retval = 1;
         goto clean_up_mmap;
     }
-    printf("Globals offset = 0x%lx\n", globals_off);
+    capstone_log("Globals offset = 0x%lx\n", globals_off);
 
     munmap(elf_header, file_stat.st_size);
     close(elf_fd);
@@ -322,7 +327,7 @@ static int load_elf_code(const char *file_name, struct ElfCode *res) {
     res->domreq_stack = domreq_stack;
     res->loadable_size = image_size;
 
-    printf("Loadable size = %lu\n", res->loadable_size);
+    capstone_log("Loadable size = %lu\n", res->loadable_size);
 
     return 0;
 
@@ -385,12 +390,12 @@ static int load_elf_code_ko(const char *file_name, struct ElfCode *res) {
         goto clean_up_mmap;
     }
 
-    printf("Ok, good file.\n");
+    capstone_log("Ok, good file.\n");
 
     Elf64_Shdr *shdrs = (Elf64_Shdr*)(((void*)elf_header) + elf_header->e_shoff);
     Elf64_Half shnum = elf_header->e_shnum;
     
-    printf("Found %lu section headers\n", shnum);
+    capstone_log("Found %lu section headers\n", shnum);
 
     int sh_idx;
     char* shstrtab = (char*)(((void*)elf_header) + shdrs[elf_header->e_shstrndx].sh_offset);
@@ -402,12 +407,12 @@ static int load_elf_code_ko(const char *file_name, struct ElfCode *res) {
         if (shdrs[sh_idx].sh_type == SHT_PROGBITS && shdrs[sh_idx].sh_flags == (SHF_ALLOC | SHF_EXECINSTR)) {
             if (exec_sh_idx == -1) {
                 exec_sh_idx = sh_idx;
-                printf("Found executable section header.\n");
+                capstone_log("Found executable section header.\n");
             }
             
             if (strcmp(shstrtab + shdrs[sh_idx].sh_name, ".init.text") == 0) {
                 init_text_sh_idx = sh_idx;
-                printf(".init.text found.\n");
+                capstone_log(".init.text found.\n");
             }
 
             if (init_text_sh_idx != -1 && exec_sh_idx != -1) {
@@ -428,10 +433,10 @@ static int load_elf_code_ko(const char *file_name, struct ElfCode *res) {
     unsigned long exec_start = (unsigned long)elf_header + shdrs[exec_sh_idx].sh_addr + shdrs[exec_sh_idx].sh_offset;
     unsigned long init_text_start = (unsigned long)elf_header + shdrs[init_text_sh_idx].sh_addr + shdrs[init_text_sh_idx].sh_offset;
     res->code_start = exec_start;
-    printf("Code start = %lx\n", res->code_start);
+    capstone_log("Code start = %lx\n", res->code_start);
     unsigned long init_text_len = shdrs[init_text_sh_idx].sh_size;
     res->code_len = init_text_start + init_text_len - exec_start;
-    printf("Code len = %lx\n", res->code_len);
+    capstone_log("Code len = %lx\n", res->code_len);
     res->entry_offset = init_text_start - exec_start;
 
     unsigned long loadable_start, loadable_end;
@@ -447,7 +452,7 @@ static int load_elf_code_ko(const char *file_name, struct ElfCode *res) {
     loadable_end = shdrs[sh_idx].sh_addr + shdrs[sh_idx].sh_offset + shdrs[sh_idx].sh_size;
     assert(loadable_end > loadable_start);
     res->loadable_size = loadable_end - loadable_start;
-    printf("Loadable size = %lu\n", res->loadable_size);
+    capstone_log("Loadable size = %lu\n", res->loadable_size);
 
     return 0;
 
@@ -561,13 +566,29 @@ c_code_cleanup:
 }
 
 unsigned long call_dom(dom_id_t dom_id) {
+    unsigned long result = (unsigned long)-1;
+    capstone_call(dom_id, &result);
+    return result;
+}
+
+int capstone_call(dom_id_t dom_id, unsigned long *result) {
+    if (!result) {
+        errno = EINVAL;
+        return -1;
+    }
     struct ioctl_dom_call_args args = {
         .dom_id = dom_id,
-        .retval = 0
+        .retval = (unsigned long)-1
     };
     debug_counter_tick(DEBUG_COUNTER_SWITCH_U);
-    ioctl(dev_fd, IOCTL_DOM_CALL, (unsigned long)&args);
-    return args.retval;
+    if (ioctl(dev_fd, IOCTL_DOM_CALL, (unsigned long)&args) < 0)
+        return -1;
+    *result = args.retval;
+    if (args.retval == (unsigned long)-1) {
+        errno = EIO;
+        return -1;
+    }
+    return 0;
 }
 
 region_id_t create_region(unsigned long len) {
@@ -581,15 +602,25 @@ region_id_t create_region(unsigned long len) {
 }
 
 void shared_region_annotated(dom_id_t dom_id, region_id_t region_id, unsigned long annotation_perm, unsigned long annotation_rev) {
+    capstone_share(dom_id, region_id, annotation_perm, annotation_rev);
+}
+
+int capstone_share(dom_id_t dom_id, region_id_t region_id, unsigned long annotation_perm, unsigned long annotation_rev) {
     struct ioctl_region_share_annotated_args args = {
         .dom_id = dom_id,
         .region_id = region_id,
         .annotation_perm = annotation_perm,
         .annotation_rev = annotation_rev,
-        .retval = 0
+        .retval = (unsigned)-1
     };
     debug_counter_tick(DEBUG_COUNTER_SWITCH_U);
-    ioctl(dev_fd, IOCTL_REGION_SHARE_ANNOTATED, (unsigned long)&args);
+    if (ioctl(dev_fd, IOCTL_REGION_SHARE_ANNOTATED, (unsigned long)&args) < 0)
+        return -1;
+    if (args.retval) {
+        errno = EIO;
+        return -1;
+    }
+    return 0;
 }
 
 void share_child_region(dom_id_t dom_id, region_id_t parent_id, unsigned long offset,

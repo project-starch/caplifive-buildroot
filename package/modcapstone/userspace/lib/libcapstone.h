@@ -5,6 +5,12 @@
 
 int capstone_init();
 int capstone_cleanup();
+/* Informational loader output is enabled by default for legacy probes. */
+void capstone_set_verbose(int enabled);
+/* Checked variants for process launchers: -1 with errno on failure. */
+int capstone_call(dom_id_t domain, unsigned long *result);
+int capstone_share(dom_id_t domain, region_id_t region,
+                   unsigned long permission, unsigned long revocation);
 
 
 dom_id_t create_dom(const char *c_path, const char *s_path);
