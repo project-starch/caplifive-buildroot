@@ -1,0 +1,27 @@
+#!/bin/sh
+
+case "$1" in
+    start)
+        if [ ! -c /dev/capstone ]; then
+            insmod /capstone.ko || exit 1
+        fi
+        capstone-exec --stats >/dev/null || exit 1
+        # The development share is optional; the launcher also works on local
+        # files from a serial shell with no host transport or network service.
+        mkdir -p /mnt/host
+        if ! grep -q ' /mnt/host ' /proc/mounts; then
+            mount -t 9p -o trans=virtio,version=9p2000.L hostshare /mnt/host 2>/dev/null || :
+        fi
+        ;;
+    stop)
+        # Cached monitor authority has VM lifetime; unloading this driver would
+        # discard its ownership records. The kernel pins it after first use.
+        ;;
+    restart)
+        "$0" start
+        ;;
+    *)
+        echo "usage: $0 {start|stop|restart}" >&2
+        exit 2
+        ;;
+esac

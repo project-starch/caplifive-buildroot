@@ -4,11 +4,14 @@
 #include "../../include/capstone.h"
 
 int capstone_init();
+int capstone_process_init(void);
+int capstone_process_stats(struct ioctl_process_stats *stats);
 int capstone_cleanup();
 /* Informational loader output is enabled by default for legacy probes. */
 void capstone_set_verbose(int enabled);
 /* Checked variants for process launchers: -1 with errno on failure. */
 int capstone_call(dom_id_t domain, unsigned long *result);
+int capstone_step(dom_id_t domain, struct ioctl_dom_step_args *step);
 int capstone_share(dom_id_t domain, region_id_t region,
                    unsigned long permission, unsigned long revocation);
 

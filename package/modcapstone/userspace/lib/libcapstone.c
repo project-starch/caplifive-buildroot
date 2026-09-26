@@ -74,7 +74,7 @@ static const unsigned char ELF_HEADER_MAGIC[4] = {
 };
 
 static int open_device() {
-    dev_fd = open(CAPSTONE_DEV_PATH, O_NONBLOCK | O_RDWR);
+    dev_fd = open(CAPSTONE_DEV_PATH, O_NONBLOCK | O_RDWR | O_CLOEXEC);
     if (dev_fd < 0) {
         return dev_fd;
     }
@@ -87,6 +87,17 @@ static int close_device() {
 
 int capstone_init() {
     return open_device();
+}
+
+int capstone_process_init(void) {
+    if (open_device()) return -1;
+    if (ioctl(dev_fd, IOCTL_PROCESS_ENABLE) < 0) {
+        int error = errno;
+        close_device();
+        errno = error;
+        return -1;
+    }
+    return 0;
 }
 
 int capstone_cleanup() {
@@ -664,35 +675,16 @@ int release_region(region_id_t region_id) {
 }
 
 void *map_region(region_id_t region_id, unsigned long len) {
-    if(region_id >= MAX_REGION_N) {
-        fprintf(stderr, "capstone: map_region: id %lu is at or above the library's table of %d\n",
-                (unsigned long)region_id, MAX_REGION_N);
+    struct ioctl_region_query_args query = {.region_id = region_id};
+    if (ioctl(dev_fd, IOCTL_REGION_QUERY, &query) < 0)
+        return NULL;
+    if (!query.len || !len || len > query.len || query.len >= MAP_SIZE_LIMIT) {
+        errno = EINVAL;
         return NULL;
     }
-    while(region_n <= region_id) {
-        struct ioctl_region_query_args region_query_args;
-        region_query_args.region_id = region_n;
-        ioctl(dev_fd, IOCTL_REGION_QUERY, (unsigned long)&region_query_args);
-        if(region_query_args.len == 0) {
-            return NULL;
-        }
-        region_mmap_offsets[region_n] = region_query_args.mmap_offset;
-        region_mmappable[region_n] = region_query_args.len < MAP_SIZE_LIMIT;
-        ++ region_n;
-    }
-    if(!region_mmappable[region_id]) {
-        /* Say it. A region at or above MAP_SIZE_LIMIT is creatable and shareable and simply cannot
-           be mapped, and until now both sides returned nothing at all -- the same silence that had
-           a CREATE failure recorded as a map failure in three documents. CMA makes this reachable:
-           regions above 4 MiB now exist, so the 256 MiB wall is a wall someone will meet. */
-        fprintf(stderr, "capstone: map_region: region %lu is %s and cannot be mapped "
-                        "(MAP_SIZE_LIMIT is %lu bytes)\n",
-                (unsigned long)region_id, "at or above the mapping limit",
-                (unsigned long)MAP_SIZE_LIMIT);
-        return NULL;
-    }
-    return mmap(NULL, len, PROT_READ | PROT_WRITE, MAP_SHARED,
-        dev_fd, region_mmap_offsets[region_id]);
+    void *mapping = mmap(NULL, len, PROT_READ | PROT_WRITE, MAP_SHARED,
+                         dev_fd, query.mmap_offset);
+    return mapping == MAP_FAILED ? NULL : mapping;
 }
 
 void probe_regions(void) {
@@ -707,4 +699,15 @@ void schedule_dom(dom_id_t dom_id) {
     struct ioctl_dom_sched_args args;
     args.dom_id = dom_id;
     ioctl(dev_fd, IOCTL_DOM_SCHEDULE, (unsigned long)&args);
+}
+
+int capstone_step(dom_id_t domain, struct ioctl_dom_step_args *step) {
+    memset(step, 0, sizeof(*step));
+    step->version = 1;
+    step->dom_id = domain;
+    return ioctl(dev_fd, IOCTL_DOM_STEP, step);
+}
+
+int capstone_process_stats(struct ioctl_process_stats *stats) {
+    return ioctl(dev_fd, IOCTL_PROCESS_STATS, stats);
 }

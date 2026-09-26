@@ -1,4 +1,8 @@
+#include "../include/process-abi.h"
 #include <linux/atomic.h>
+#include <linux/slab.h>
+#include <linux/mutex.h>
+#include <linux/sched/signal.h>
 #include <linux/delay.h>
 #include <linux/types.h>
 #include <linux/cdev.h>
@@ -74,15 +78,24 @@ static struct platform_device *region_dev;
 static size_t pre_mmap_offset;
 static struct RegionInfo regions[MAX_REGION_N];
 static int region_n;
+#include "process.h"
 
 static int device_open(struct inode *inode, struct file *file) {
-	try_module_get(THIS_MODULE);
-	return SUCCESS;
+    struct process_owner *owner = kzalloc(sizeof(*owner), GFP_KERNEL);
+    if (!owner) return -ENOMEM;
+    file->private_data = owner;
+    try_module_get(THIS_MODULE);
+    return SUCCESS;
 }
 
 static int device_release(struct inode *inode, struct file *file) {
-	module_put(THIS_MODULE);
-	return SUCCESS;
+    struct process_owner *owner = file->private_data;
+    mutex_lock(&capstone_lock);
+    process_release(owner);
+    mutex_unlock(&capstone_lock);
+    kfree(owner);
+    module_put(THIS_MODULE);
+    return SUCCESS;
 }
 
 static ssize_t device_read(struct file *file,
@@ -598,11 +611,66 @@ static void ioctl_schedule_dom(struct ioctl_dom_sched_args* __user args) {
 		m_args.dom_id, 0, 0, 0, 0, 0);
 }
 
-static long device_ioctl(struct file* file,
+static long ioctl_step_dom(void __user *args)
+{
+    struct ioctl_dom_step_args step;
+    struct sbiret r;
+    unsigned long *values[4];
+    unsigned i;
+    if (copy_from_user(&step, args, sizeof(step)))
+        return -EFAULT;
+    if (step.version != 1)
+        return -EINVAL;
+    r = sbi_ecall(SBI_EXT_CAPSTONE, SBI_CAPSTONE_PROCESS_CAPABILITIES, 0, 0, 0, 0, 0, 0);
+    if (r.error || r.value != CAPSTONE_PROCESS_FEATURES_V1)
+        return -EOPNOTSUPP;
+    r = sbi_ecall(SBI_EXT_CAPSTONE, SBI_CAPSTONE_PROCESS_STEP, step.dom_id, 0, 0, 0, 0, 0);
+    if (r.error || r.value < 0 || r.value > CAPSTONE_STEP_FAULT)
+        return -EIO;
+    step.event = r.value;
+    values[0] = &step.result;
+    values[1] = &step.cause;
+    values[2] = &step.pc;
+    values[3] = &step.address;
+    for (i = 0; i < 4; ++i) {
+        r = sbi_ecall(SBI_EXT_CAPSTONE, SBI_CAPSTONE_PROCESS_QUERY, step.dom_id, i, 0, 0, 0, 0);
+        if (r.error)
+            return -EIO;
+        *values[i] = (u32)r.value;
+        r = sbi_ecall(SBI_EXT_CAPSTONE, SBI_CAPSTONE_PROCESS_QUERY,
+                      step.dom_id, i + 4, 0, 0, 0, 0);
+        if (r.error) return -EIO;
+        *values[i] |= (unsigned long)(u32)r.value << 32;
+    }
+    return copy_to_user(args, &step, sizeof(step)) ? -EFAULT : 0;
+}
+
+#include "process.c"
+
+static long device_ioctl_locked(struct file* file,
 					     unsigned int ioctl_num,
 						 unsigned long ioctl_param)
 {
-	switch (ioctl_num) {
+    struct process_owner *owner = file->private_data;
+    if (ioctl_num == IOCTL_PROCESS_ENABLE) {
+        struct sbiret r;
+        if (owner->managed) return 0;
+        if (legacy_api_selected) return -EBUSY;
+        if (owner->used) return -EBUSY;
+        r = sbi_ecall(SBI_EXT_CAPSTONE, SBI_CAPSTONE_PROCESS_CAPABILITIES, 0, 0, 0, 0, 0, 0);
+        if (r.error || r.value != CAPSTONE_PROCESS_FEATURES_V1) return -EOPNOTSUPP;
+        process_api_selected = true;
+        owner->managed = true;
+        return 0;
+    }
+    owner->used = true;
+    if (owner->managed)
+        return process_ioctl(owner, ioctl_num, (void __user *)ioctl_param);
+    if (process_api_selected) return -EBUSY;
+    legacy_api_selected = true;
+    switch (ioctl_num) {
+        case IOCTL_DOM_STEP:
+            return ioctl_step_dom((void __user *)ioctl_param);
 		case IOCTL_DOM_CREATE:
 			ioctl_create_dom((struct ioctl_dom_create_args* __user)ioctl_param);
 			break;
@@ -642,7 +710,27 @@ static long device_ioctl(struct file* file,
 	return 0;
 }
 
+static long device_ioctl(struct file *file, unsigned int number, unsigned long arg)
+{
+    long result;
+    if (mutex_lock_interruptible(&capstone_lock))
+        return -EINTR;
+    result = device_ioctl_locked(file, number, arg);
+    mutex_unlock(&capstone_lock);
+    cond_resched();
+    return result;
+}
+
 static int device_mmap(struct file *filp, struct vm_area_struct *vma) {
+    struct process_owner *owner = filp->private_data;
+    if (owner->managed) return process_mmap(owner, vma);
+    if (mutex_lock_interruptible(&capstone_lock)) return -EINTR;
+    if (process_api_selected) {
+        mutex_unlock(&capstone_lock);
+        return -EBUSY;
+    }
+    legacy_api_selected = true;
+    mutex_unlock(&capstone_lock);
 	if(!region_n)
 		return -EINVAL;
 	int i;
