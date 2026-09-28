@@ -10,6 +10,7 @@
 #include <sys/stat.h>
 #include <elf.h>
 #include <fcntl.h>
+#include <errno.h>
 #include "libcapstone.h"
 
 #ifndef EM_CAPSTONE
@@ -59,6 +60,10 @@ struct ElfCode {
     unsigned long domreq_data, domreq_stack;   /* 0 = the image declares nothing */
 };
 
+static int verbose = 1;
+void capstone_set_verbose(int enabled) { verbose = !!enabled; }
+#define capstone_log(...) do { if (verbose) printf(__VA_ARGS__); } while (0)
+
 static int dev_fd;
 static size_t region_mmap_offsets[MAX_REGION_N];
 static int region_mmappable[MAX_REGION_N];
@@ -69,7 +74,7 @@ static const unsigned char ELF_HEADER_MAGIC[4] = {
 };
 
 static int open_device() {
-    dev_fd = open(CAPSTONE_DEV_PATH, O_NONBLOCK | O_RDWR);
+    dev_fd = open(CAPSTONE_DEV_PATH, O_NONBLOCK | O_RDWR | O_CLOEXEC);
     if (dev_fd < 0) {
         return dev_fd;
     }
@@ -82,6 +87,17 @@ static int close_device() {
 
 int capstone_init() {
     return open_device();
+}
+
+int capstone_process_init(void) {
+    if (open_device()) return -1;
+    if (ioctl(dev_fd, IOCTL_PROCESS_ENABLE) < 0) {
+        int error = errno;
+        close_device();
+        errno = error;
+        return -1;
+    }
+    return 0;
 }
 
 int capstone_cleanup() {
@@ -125,12 +141,12 @@ static int load_elf_code(const char *file_name, struct ElfCode *res) {
         goto clean_up_mmap;
     }
 
-    printf("Ok, good file.\n");
+    capstone_log("Ok, good file.\n");
     
     Elf64_Phdr *phdrs = (Elf64_Phdr*)(((void*)elf_header) + elf_header->e_phoff);
     Elf64_Half phnum = elf_header->e_phnum;
 
-    printf("Found %lu segments\n", phnum);
+    capstone_log("Found %lu segments\n", phnum);
 
     int ph_idx;
     int exec_ph_idx = -1;
@@ -163,11 +179,11 @@ static int load_elf_code(const char *file_name, struct ElfCode *res) {
         retval = 1;
         goto clean_up_mmap;
     }
-    printf("Loadable executable segment found.\n");
-    printf("Entry address = %lx\n", elf_header->e_entry);
-    printf("Virtual address = %lx\n", phdrs[exec_ph_idx].p_vaddr);
-    printf("File offset = %lx\n", phdrs[exec_ph_idx].p_offset);
-    printf("Segment size = %lx\n", phdrs[exec_ph_idx].p_filesz);
+    capstone_log("Loadable executable segment found.\n");
+    capstone_log("Entry address = %lx\n", elf_header->e_entry);
+    capstone_log("Virtual address = %lx\n", phdrs[exec_ph_idx].p_vaddr);
+    capstone_log("File offset = %lx\n", phdrs[exec_ph_idx].p_offset);
+    capstone_log("Segment size = %lx\n", phdrs[exec_ph_idx].p_filesz);
 
     if (first_load_ph_idx == -1 || loadable_end <= loadable_start) {
         fprintf(stderr, "No PT_LOAD image to load.\n");
@@ -280,9 +296,9 @@ static int load_elf_code(const char *file_name, struct ElfCode *res) {
         }
     }
     if (domreq_data)
-        printf("Domain requirement = %lu (stack %lu)\n", domreq_data, domreq_stack);
+        capstone_log("Domain requirement = %lu (stack %lu)\n", domreq_data, domreq_stack);
     else
-        printf("Domain requirement = none declared\n");
+        capstone_log("Domain requirement = none declared\n");
 
     unsigned long globals_off = 0;
     if (elf_header->e_shoff && elf_header->e_shstrndx < elf_header->e_shnum) {
@@ -306,7 +322,7 @@ static int load_elf_code(const char *file_name, struct ElfCode *res) {
         retval = 1;
         goto clean_up_mmap;
     }
-    printf("Globals offset = 0x%lx\n", globals_off);
+    capstone_log("Globals offset = 0x%lx\n", globals_off);
 
     munmap(elf_header, file_stat.st_size);
     close(elf_fd);
@@ -322,7 +338,7 @@ static int load_elf_code(const char *file_name, struct ElfCode *res) {
     res->domreq_stack = domreq_stack;
     res->loadable_size = image_size;
 
-    printf("Loadable size = %lu\n", res->loadable_size);
+    capstone_log("Loadable size = %lu\n", res->loadable_size);
 
     return 0;
 
@@ -385,12 +401,12 @@ static int load_elf_code_ko(const char *file_name, struct ElfCode *res) {
         goto clean_up_mmap;
     }
 
-    printf("Ok, good file.\n");
+    capstone_log("Ok, good file.\n");
 
     Elf64_Shdr *shdrs = (Elf64_Shdr*)(((void*)elf_header) + elf_header->e_shoff);
     Elf64_Half shnum = elf_header->e_shnum;
     
-    printf("Found %lu section headers\n", shnum);
+    capstone_log("Found %lu section headers\n", shnum);
 
     int sh_idx;
     char* shstrtab = (char*)(((void*)elf_header) + shdrs[elf_header->e_shstrndx].sh_offset);
@@ -402,12 +418,12 @@ static int load_elf_code_ko(const char *file_name, struct ElfCode *res) {
         if (shdrs[sh_idx].sh_type == SHT_PROGBITS && shdrs[sh_idx].sh_flags == (SHF_ALLOC | SHF_EXECINSTR)) {
             if (exec_sh_idx == -1) {
                 exec_sh_idx = sh_idx;
-                printf("Found executable section header.\n");
+                capstone_log("Found executable section header.\n");
             }
             
             if (strcmp(shstrtab + shdrs[sh_idx].sh_name, ".init.text") == 0) {
                 init_text_sh_idx = sh_idx;
-                printf(".init.text found.\n");
+                capstone_log(".init.text found.\n");
             }
 
             if (init_text_sh_idx != -1 && exec_sh_idx != -1) {
@@ -428,10 +444,10 @@ static int load_elf_code_ko(const char *file_name, struct ElfCode *res) {
     unsigned long exec_start = (unsigned long)elf_header + shdrs[exec_sh_idx].sh_addr + shdrs[exec_sh_idx].sh_offset;
     unsigned long init_text_start = (unsigned long)elf_header + shdrs[init_text_sh_idx].sh_addr + shdrs[init_text_sh_idx].sh_offset;
     res->code_start = exec_start;
-    printf("Code start = %lx\n", res->code_start);
+    capstone_log("Code start = %lx\n", res->code_start);
     unsigned long init_text_len = shdrs[init_text_sh_idx].sh_size;
     res->code_len = init_text_start + init_text_len - exec_start;
-    printf("Code len = %lx\n", res->code_len);
+    capstone_log("Code len = %lx\n", res->code_len);
     res->entry_offset = init_text_start - exec_start;
 
     unsigned long loadable_start, loadable_end;
@@ -447,7 +463,7 @@ static int load_elf_code_ko(const char *file_name, struct ElfCode *res) {
     loadable_end = shdrs[sh_idx].sh_addr + shdrs[sh_idx].sh_offset + shdrs[sh_idx].sh_size;
     assert(loadable_end > loadable_start);
     res->loadable_size = loadable_end - loadable_start;
-    printf("Loadable size = %lu\n", res->loadable_size);
+    capstone_log("Loadable size = %lu\n", res->loadable_size);
 
     return 0;
 
@@ -561,13 +577,29 @@ c_code_cleanup:
 }
 
 unsigned long call_dom(dom_id_t dom_id) {
+    unsigned long result = (unsigned long)-1;
+    capstone_call(dom_id, &result);
+    return result;
+}
+
+int capstone_call(dom_id_t dom_id, unsigned long *result) {
+    if (!result) {
+        errno = EINVAL;
+        return -1;
+    }
     struct ioctl_dom_call_args args = {
         .dom_id = dom_id,
-        .retval = 0
+        .retval = (unsigned long)-1
     };
     debug_counter_tick(DEBUG_COUNTER_SWITCH_U);
-    ioctl(dev_fd, IOCTL_DOM_CALL, (unsigned long)&args);
-    return args.retval;
+    if (ioctl(dev_fd, IOCTL_DOM_CALL, (unsigned long)&args) < 0)
+        return -1;
+    *result = args.retval;
+    if (args.retval == (unsigned long)-1) {
+        errno = EIO;
+        return -1;
+    }
+    return 0;
 }
 
 region_id_t create_region(unsigned long len) {
@@ -581,15 +613,25 @@ region_id_t create_region(unsigned long len) {
 }
 
 void shared_region_annotated(dom_id_t dom_id, region_id_t region_id, unsigned long annotation_perm, unsigned long annotation_rev) {
+    capstone_share(dom_id, region_id, annotation_perm, annotation_rev);
+}
+
+int capstone_share(dom_id_t dom_id, region_id_t region_id, unsigned long annotation_perm, unsigned long annotation_rev) {
     struct ioctl_region_share_annotated_args args = {
         .dom_id = dom_id,
         .region_id = region_id,
         .annotation_perm = annotation_perm,
         .annotation_rev = annotation_rev,
-        .retval = 0
+        .retval = (unsigned)-1
     };
     debug_counter_tick(DEBUG_COUNTER_SWITCH_U);
-    ioctl(dev_fd, IOCTL_REGION_SHARE_ANNOTATED, (unsigned long)&args);
+    if (ioctl(dev_fd, IOCTL_REGION_SHARE_ANNOTATED, (unsigned long)&args) < 0)
+        return -1;
+    if (args.retval) {
+        errno = EIO;
+        return -1;
+    }
+    return 0;
 }
 
 void share_child_region(dom_id_t dom_id, region_id_t parent_id, unsigned long offset,
@@ -633,35 +675,16 @@ int release_region(region_id_t region_id) {
 }
 
 void *map_region(region_id_t region_id, unsigned long len) {
-    if(region_id >= MAX_REGION_N) {
-        fprintf(stderr, "capstone: map_region: id %lu is at or above the library's table of %d\n",
-                (unsigned long)region_id, MAX_REGION_N);
+    struct ioctl_region_query_args query = {.region_id = region_id};
+    if (ioctl(dev_fd, IOCTL_REGION_QUERY, &query) < 0)
+        return NULL;
+    if (!query.len || !len || len > query.len || query.len >= MAP_SIZE_LIMIT) {
+        errno = EINVAL;
         return NULL;
     }
-    while(region_n <= region_id) {
-        struct ioctl_region_query_args region_query_args;
-        region_query_args.region_id = region_n;
-        ioctl(dev_fd, IOCTL_REGION_QUERY, (unsigned long)&region_query_args);
-        if(region_query_args.len == 0) {
-            return NULL;
-        }
-        region_mmap_offsets[region_n] = region_query_args.mmap_offset;
-        region_mmappable[region_n] = region_query_args.len < MAP_SIZE_LIMIT;
-        ++ region_n;
-    }
-    if(!region_mmappable[region_id]) {
-        /* Say it. A region at or above MAP_SIZE_LIMIT is creatable and shareable and simply cannot
-           be mapped, and until now both sides returned nothing at all -- the same silence that had
-           a CREATE failure recorded as a map failure in three documents. CMA makes this reachable:
-           regions above 4 MiB now exist, so the 256 MiB wall is a wall someone will meet. */
-        fprintf(stderr, "capstone: map_region: region %lu is %s and cannot be mapped "
-                        "(MAP_SIZE_LIMIT is %lu bytes)\n",
-                (unsigned long)region_id, "at or above the mapping limit",
-                (unsigned long)MAP_SIZE_LIMIT);
-        return NULL;
-    }
-    return mmap(NULL, len, PROT_READ | PROT_WRITE, MAP_SHARED,
-        dev_fd, region_mmap_offsets[region_id]);
+    void *mapping = mmap(NULL, len, PROT_READ | PROT_WRITE, MAP_SHARED,
+                         dev_fd, query.mmap_offset);
+    return mapping == MAP_FAILED ? NULL : mapping;
 }
 
 void probe_regions(void) {
@@ -676,4 +699,15 @@ void schedule_dom(dom_id_t dom_id) {
     struct ioctl_dom_sched_args args;
     args.dom_id = dom_id;
     ioctl(dev_fd, IOCTL_DOM_SCHEDULE, (unsigned long)&args);
+}
+
+int capstone_step(dom_id_t domain, struct ioctl_dom_step_args *step) {
+    memset(step, 0, sizeof(*step));
+    step->version = 1;
+    step->dom_id = domain;
+    return ioctl(dev_fd, IOCTL_DOM_STEP, step);
+}
+
+int capstone_process_stats(struct ioctl_process_stats *stats) {
+    return ioctl(dev_fd, IOCTL_PROCESS_STATS, stats);
 }

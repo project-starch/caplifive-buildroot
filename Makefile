@@ -38,6 +38,9 @@ DEFCONFIG := $(CURDIR)/configs/qemu_capstone_defconfig
 OPENSBI_DIR := $(CURDIR)/components/opensbi
 # The QEMU-private debug counters stay compiled into the QEMU monitor, as they always were.
 CAPSTONE_EXTRA_DEFS += -DCAPSTONE_TARGET_QEMU -DCAPSTONE_DEBUG_ENABLE
+# Matched with the VM's supervised CALL and revocation collection extension.
+# The hardware target retains its own ISA and does not advertise this feature.
+CAPSTONE_EXTRA_DEFS += -DCAPSTONE_SUPERVISED_CALL
 LINUX_PAYLOAD ?=
 endif
 

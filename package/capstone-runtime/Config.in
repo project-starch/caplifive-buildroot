@@ -1,0 +1,20 @@
+config BR2_PACKAGE_CAPSTONE_RUNTIME
+    bool "Capstone application runtime"
+    depends on BR2_riscv && BR2_ARCH_IS_64
+    select BR2_PACKAGE_MODCAPSTONE
+    select BR2_PACKAGE_DROPBEAR
+    help
+        Install capstone-exec and start the Capstone driver in an ordinary
+        Linux guest. Applications use inherited Linux streams and arguments.
+        Requires the matching supervised-execution VM and monitor firmware.
+
+if BR2_PACKAGE_CAPSTONE_RUNTIME
+
+config BR2_PACKAGE_CAPSTONE_RUNTIME_SOURCE
+    string "LLVM Capstone source checkout"
+    help
+        Absolute path to the LLVM checkout containing capstone/runtime.
+        Runtime sources are copied into the Buildroot output directory;
+        building this package does not modify the source checkout.
+
+endif

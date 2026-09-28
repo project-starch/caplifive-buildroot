@@ -97,4 +97,29 @@ struct ioctl_dom_sched_args {
 #define IOCTL_REGION_SHARE_CHILD     _IOWR(IOC_MAGIC, 9, struct ioctl_region_share_child_args)
 #define IOCTL_REGION_RELEASE         _IOWR(IOC_MAGIC, 10, struct ioctl_region_release_args)
 
+/* A step always returns to Linux, including on preemption and domain fault.
+ * ABI v1 is RV64-only; its separate event distinguishes a fault from an exit. */
+struct ioctl_dom_step_args {
+    unsigned long version;
+    dom_id_t dom_id;
+    unsigned long event;
+    unsigned long result;
+    unsigned long cause;
+    unsigned long pc;
+    unsigned long address;
+};
+#define CAPSTONE_STEP_RETURNED 0
+#define CAPSTONE_STEP_PREEMPTED 1
+#define CAPSTONE_STEP_FAULT 2
+struct ioctl_process_stats {
+    unsigned long version;
+    unsigned long live_domains, live_regions, live_bytes;
+    unsigned long cached_bytes, poisoned_blocks;
+    unsigned long nodes_high_water, nodes_live, nodes_retired;
+    unsigned long nodes_allocated_total, tag_pages, node_capacity;
+};
+#define IOCTL_PROCESS_STATS _IOR(IOC_MAGIC, 13, struct ioctl_process_stats)
+#define IOCTL_PROCESS_ENABLE _IO(IOC_MAGIC, 12)
+#define IOCTL_DOM_STEP _IOWR(IOC_MAGIC, 11, struct ioctl_dom_step_args)
+
 #endif

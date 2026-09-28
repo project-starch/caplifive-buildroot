@@ -1,6 +1,11 @@
 MODCAPSTONE_VERSION = 1.0
 MODCAPSTONE_SITE = $(BR2_EXTERNAL_CAPSTONE_PATH)/package/modcapstone
 MODCAPSTONE_SITE_METHOD = local
+# A clean full image build must configure the kernel before compiling a module.
+# Development rootfs-only builds may instead supply an already prepared LINUX_DIR.
+ifeq ($(BR2_LINUX_KERNEL),y)
+MODCAPSTONE_DEPENDENCIES += linux
+endif
 
 
 define MODCAPSTONE_BUILD_CMDS
