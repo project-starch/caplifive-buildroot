@@ -23,8 +23,10 @@ struct process_block {
 };
 
 /* Contexts an owner's application minted and the monitor adopted. They have no
- * memory of their own: it stays with the application's domain block. */
-#define PROCESS_CONTEXTS 32
+ * memory of their own: it stays with the application's domain block. One
+ * record per monitor slot at most (process_purge_slot), and a live application
+ * holds a slot of its own, so an adoption always finds a free record. */
+#define PROCESS_CONTEXTS CAPSTONE_PROCESS_SLOTS
 struct process_context {
     struct process_owner *owner;
     unsigned long slot, gen;
@@ -74,6 +76,18 @@ static struct process_context *process_find_context(struct process_owner *owner,
 static bool process_owns_context(struct process_owner *owner, dom_id_t id)
 {
     return process_find_domain(owner, id) || process_find_context(owner, id);
+}
+
+/* The monitor has given slot `slot` a new generation. Every record of an older
+ * one is dead: the monitor retired it on a shortage (Linux never forgot it) or
+ * its FORGET is still to come, and either way it would now be refused as
+ * stale. Dropping it here bounds the table by the monitor's slot count. */
+static void process_purge_slot(unsigned long slot)
+{
+    unsigned i;
+    for (i = 0; i < PROCESS_CONTEXTS; ++i)
+        if (process_contexts[i].owner && process_contexts[i].slot == slot)
+            process_contexts[i].owner = NULL;
 }
 
 static struct process_block *process_acquire(struct process_block *blocks,
@@ -182,6 +196,7 @@ static long process_create_domain(struct process_owner *owner, void __user *arg)
     }
     b->id = context_slot(r.value);
     b->gen = context_gen(r.value);
+    process_purge_slot(b->id);
     process_pin();
     a.dom_id = r.value;
     return copy_to_user(arg, &a, sizeof(a)) ? -EFAULT : 0;
@@ -276,6 +291,7 @@ static long process_adopt(struct process_owner *owner, void __user *arg)
     if (r.value == CAPSTONE_PROCESS_EMPTY) return -ENOENT;
     if (r.value == CAPSTONE_PROCESS_FULL) return -ENOSPC;
     if (r.value < 0) return -EIO;
+    process_purge_slot(context_slot(r.value));
     slot->owner = owner;
     slot->slot = context_slot(r.value);
     slot->gen = context_gen(r.value);
