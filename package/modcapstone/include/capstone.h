@@ -29,6 +29,10 @@ struct ioctl_dom_create_args {
      * That is what lets the loader land before the module does. */
     size_t domreq_data;      /* bytes dom_data must hold, all four parts together */
     size_t domreq_stack;     /* how much of that is stack; diagnostics only */
+    /* The file-backed prefix of [code_begin, code_begin + code_len): what the module
+     * copies. The rest of the image is .bss and is zero; the module zeroes it with the
+     * block tail instead of copying zeros from user space. 0 < copy_len <= code_len. */
+    size_t copy_len;
 };
 
 struct ioctl_dom_call_args {
