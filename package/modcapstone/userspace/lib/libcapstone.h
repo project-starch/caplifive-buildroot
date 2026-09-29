@@ -12,6 +12,8 @@ void capstone_set_verbose(int enabled);
 /* Checked variants for process launchers: -1 with errno on failure. */
 int capstone_call(dom_id_t domain, unsigned long *result);
 int capstone_step(dom_id_t domain, struct ioctl_dom_step_args *step);
+int capstone_adopt(dom_id_t parent, unsigned long ticket, dom_id_t *child);
+int capstone_forget(dom_id_t context);
 int capstone_share(dom_id_t domain, region_id_t region,
                    unsigned long permission, unsigned long revocation);
 

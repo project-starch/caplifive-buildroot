@@ -39,7 +39,7 @@
 /* The monitor's seal region plus the two roundings create_domain applies to the
    code/data split. NOT DOMAIN_DATA_SIZE above: that is this file's constant and the
    monitor's same-named one is 1536. Conflating the two has cost a session before. */
-#define MONITOR_SPLIT_SLACK (8 * 1024)
+#define MONITOR_SPLIT_SLACK (8 * 1024 + CAPSTONE_PROCESS_DESC_AREA)
 #define MAP_SIZE_LIMIT 0x10000000
 
 #define SUCCESS 0
@@ -617,8 +617,8 @@ static void ioctl_schedule_dom(struct ioctl_dom_sched_args* __user args) {
  * clobbered. */
 static long capstone_sbi_step(struct ioctl_dom_step_args *step)
 {
-    register unsigned long a0 asm("a0") = step->dom_id;
-    register unsigned long a1 asm("a1") = 0;
+    register unsigned long a0 asm("a0") = step->dom_id & CAPSTONE_PROCESS_SLOT_MASK;
+    register unsigned long a1 asm("a1") = step->dom_id >> 32;
     register unsigned long a2 asm("a2") = 0;
     register unsigned long a3 asm("a3") = 0;
     register unsigned long a4 asm("a4") = 0;
@@ -629,7 +629,7 @@ static long capstone_sbi_step(struct ioctl_dom_step_args *step)
                  : "+r"(a0), "+r"(a1), "+r"(a2), "+r"(a3), "+r"(a4), "+r"(a5)
                  : "r"(a6), "r"(a7)
                  : "memory");
-    if (a0 || a1 > CAPSTONE_STEP_FAULT)
+    if (a0 || a1 > CAPSTONE_STEP_STALE)
         return -EIO;
     step->event = a1;
     step->result = a2;
