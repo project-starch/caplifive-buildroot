@@ -61,6 +61,20 @@ make TARGET=fpga build A=opensbi-rebuild     # after a monitor edit: regenerates
 make TARGET=qemu setup && make TARGET=qemu build
 ```
 
+The QEMU kernel enables `CONFIG_BINFMT_MISC=y` so a native shell can execute
+Capstone ELF images through `/usr/bin/capstone-exec`. The LLVM runtime's
+`capstone-vm up` mounts binfmt_misc and registers the ELF machine 259 handler;
+the kernel option alone does not install that handler. The FPGA configuration
+is independent.
+
+Build from the pinned `components/linux` sources. A copied kernel build tree
+can contain local source edits even when its `.config` looks correct. The
+delegation qualification found such address-tag edits in a snapshot whose
+kernel failed to execute init with `E2BIG`; the clean pinned sources boot with
+the same configuration and binfmt_misc enabled. When changing the kernel
+configuration in an existing Buildroot output, use `A=linux-reconfigure` to
+apply it before rebuilding the image and its matching modules.
+
 The generated `sbi_capstone_dom.c.S` / `capstone_int_handler.c.S` depend on the monitor source and
 headers, so they regenerate on their own; a failed regeneration deletes them, so parse the wrapper
 in place first when editing the monitor (see `docs/plans/monitor-unification.md` in the parent tree).
