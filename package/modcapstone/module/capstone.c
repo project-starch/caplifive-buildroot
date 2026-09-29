@@ -629,7 +629,7 @@ static long capstone_sbi_step(struct ioctl_dom_step_args *step)
                  : "+r"(a0), "+r"(a1), "+r"(a2), "+r"(a3), "+r"(a4), "+r"(a5)
                  : "r"(a6), "r"(a7)
                  : "memory");
-    if (a0 || a1 > CAPSTONE_STEP_STALE)
+    if (a0 || a1 > CAPSTONE_STEP_REFUSED)
         return -EIO;
     step->event = a1;
     step->result = a2;

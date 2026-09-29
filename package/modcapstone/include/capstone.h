@@ -117,6 +117,7 @@ struct ioctl_dom_step_args {
 #define CAPSTONE_STEP_FAULT 2
 #define CAPSTONE_STEP_DEAD 3   /* the context's seal was revoked; it can never run again */
 #define CAPSTONE_STEP_STALE 4  /* the id names no current context (old generation) */
+#define CAPSTONE_STEP_REFUSED 5 /* the seal would not run in C-mode; it was not entered */
 
 /* Context ids are (generation << 32) | slot; a generation is never reissued.
  * ADOPT registers the seal a context offered through its invocation
