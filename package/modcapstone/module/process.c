@@ -159,19 +159,16 @@ static long process_create_domain(struct process_owner *owner, void __user *arg)
     return copy_to_user(arg, &a, sizeof(a)) ? -EFAULT : 0;
 }
 
-static long process_create_region(struct process_owner *owner, void __user *arg)
+/* A region of at least len bytes for owner, from the cache when a free block
+ * fits, else fresh; the monitor creates or re-prepares it. */
+static struct process_block *process_region_get(struct process_owner *owner, size_t len)
 {
-    struct ioctl_region_create_args a;
     struct process_block *b;
     struct sbiret r;
-    struct RegionInfo *region;
-    size_t bytes;
+    size_t bytes = roundup_pow_of_two(PAGE_ALIGN(len));
     bool fresh;
-    if (copy_from_user(&a, arg, sizeof(a))) return -EFAULT;
-    if (!a.len || a.len > PROCESS_MAX_BYTES) return -EINVAL;
-    bytes = roundup_pow_of_two(PAGE_ALIGN(a.len));
     b = process_acquire(process_regions, PROCESS_REGIONS, owner, bytes, &fresh);
-    if (IS_ERR(b)) return PTR_ERR(b);
+    if (IS_ERR(b)) return b;
     if (fresh) {
         memset(page_address(b->pages), 0, b->bytes);
         r = sbi_ecall(SBI_EXT_CAPSTONE, SBI_CAPSTONE_PROCESS_REGION_CREATE, page_to_phys(b->pages),
@@ -181,10 +178,22 @@ static long process_create_region(struct process_owner *owner, void __user *arg)
     }
     if (r.error || r.value < 0) {
         process_rollback(b, fresh);
-        return -ENOSPC;
+        return ERR_PTR(-ENOSPC);
     }
     if (fresh) b->id = r.value;
     process_pin();
+    return b;
+}
+
+static long process_create_region(struct process_owner *owner, void __user *arg)
+{
+    struct ioctl_region_create_args a;
+    struct process_block *b;
+    struct RegionInfo *region;
+    if (copy_from_user(&a, arg, sizeof(a))) return -EFAULT;
+    if (!a.len || a.len > PROCESS_MAX_BYTES) return -EINVAL;
+    b = process_region_get(owner, a.len);
+    if (IS_ERR(b)) return PTR_ERR(b);
     probe_regions();
     if (b->id >= MAX_REGION_N) {
         b->poisoned = true;
@@ -197,11 +206,10 @@ static long process_create_region(struct process_owner *owner, void __user *arg)
     return copy_to_user(arg, &a, sizeof(a)) ? -EFAULT : 0;
 }
 
-/* GRANT: the region leaves Linux for as long as the mapping lives. The monitor
- * withdraws the CPMP association itself; here a live VMA or an earlier share
- * refuses the grant, and the transferred flag refuses mmap until RELEASE. The
- * table geometry is checked here too, so a short region reports EINVAL rather
- * than the monitor's bare -1. */
+/* GRANT: a region from the caller's cache, never mapped by Linux, becomes the
+ * mapping's backing. A refusal by the monitor returns the region to the cache;
+ * the monitor refuses before it changes anything (node admission, pending
+ * delivery, preempted domain), so the block is still a prepared region. */
 static long process_map_grant(struct process_owner *owner, void __user *arg)
 {
     struct ioctl_map_grant_args a;
@@ -213,22 +221,25 @@ static long process_map_grant(struct process_owner *owner, void __user *arg)
     if (copy_from_user(&a, arg, sizeof(a))) return -EFAULT;
     if (a.version != 1) return -EINVAL;
     if (!process_find(process_domains, PROCESS_DOMAINS, owner, a.dom_id)) return -EPERM;
-    b = process_find(process_regions, PROCESS_REGIONS, owner, a.region_id);
-    if (!b) return -EPERM;
     if (!a.len || (a.len & (PAGE_SIZE - 1)) || a.len > CAPSTONE_MAP_MAX_BYTES) return -EINVAL;
     if (a.prot != CAPSTONE_MAP_PROT_R && a.prot != CAPSTONE_MAP_PROT_RW) return -EINVAL;
     pages = a.len >> PAGE_SHIFT;
     leaves = (pages + 255) >> 8;
-    if (((1 + leaves + pages) << PAGE_SHIFT) > b->bytes) return -EINVAL;
-    if (b->poisoned || b->shared || atomic_read(&b->mappings)) return -EBUSY;
     for (i = 0; i < PROCESS_MAPPINGS; ++i)
         if (!process_mappings[i].owner) { m = &process_mappings[i]; break; }
     if (!m) return -ENOSPC;
-    r = sbi_ecall(SBI_EXT_CAPSTONE, SBI_CAPSTONE_MAP_GRANT, a.dom_id, a.region_id,
-                  a.len, a.prot, 0, 0);
-    if (r.error || r.value < 0) return -ENOSPC;
+    b = process_region_get(owner, (1 + leaves + pages) << PAGE_SHIFT);
+    if (IS_ERR(b)) return PTR_ERR(b);
+    /* The mapping is its only user; the transferred flag refuses Linux mmap. */
     b->shared = true;
     b->transferred = true;
+    r = sbi_ecall(SBI_EXT_CAPSTONE, SBI_CAPSTONE_MAP_GRANT, a.dom_id, b->id,
+                  a.len, a.prot, 0, 0);
+    if (r.error || r.value < 0) {
+        b->shared = b->transferred = false;
+        b->owner = NULL;
+        return -ENOSPC;
+    }
     m->owner = owner;
     m->region = b;
     m->dom_id = a.dom_id;
@@ -237,9 +248,10 @@ static long process_map_grant(struct process_owner *owner, void __user *arg)
     return copy_to_user(arg, &a, sizeof(a)) ? -EFAULT : 0;
 }
 
-/* RELEASE: the monitor detaches, destroys and resets the region into the
- * prepared state, so the block is an ordinary region again. A refusal
- * poisons the block: its pages are neither Linux's nor reclaimed. */
+/* RELEASE: the monitor detaches, destroys and resets the region, and the
+ * block goes back to the cache (no owner), where the next GRANT or
+ * REGION_CREATE re-prepares it. A refusal poisons the block: its pages are
+ * neither Linux's nor reclaimed. */
 static long process_map_release_one(struct process_mapping *m)
 {
     struct sbiret r = sbi_ecall(SBI_EXT_CAPSTONE, SBI_CAPSTONE_MAP_RELEASE, m->dom_id,
@@ -252,6 +264,7 @@ static long process_map_release_one(struct process_mapping *m)
     }
     m->region->shared = false;
     m->region->transferred = false;
+    m->region->owner = NULL;
     return 0;
 }
 

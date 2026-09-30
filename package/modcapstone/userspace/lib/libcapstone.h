@@ -14,10 +14,11 @@ int capstone_call(dom_id_t domain, unsigned long *result);
 int capstone_step(dom_id_t domain, struct ioctl_dom_step_args *step);
 int capstone_share(dom_id_t domain, region_id_t region,
                    unsigned long permission, unsigned long revocation);
-/* Translated mappings (managed API): GRANT turns a region of ours into a
-   PRIVATE mapping of the domain and returns its binding word; RELEASE ends
-   it. -1 with errno on failure (EINVAL, EPERM, EBUSY, ENOSPC, ENOENT, EIO). */
-int capstone_map_grant(dom_id_t domain, region_id_t region, unsigned long len,
+/* Translated mappings (managed API): GRANT builds a PRIVATE mapping of len
+   bytes for the domain from a region of the process cache and returns its
+   binding word; RELEASE ends it and returns the region to the cache. -1 with
+   errno on failure (EINVAL, EPERM, ENOSPC, ENOMEM, ENOENT, EIO). */
+int capstone_map_grant(dom_id_t domain, unsigned long len,
                        unsigned long prot, unsigned long *binding);
 int capstone_map_release(dom_id_t domain, unsigned long binding);
 
