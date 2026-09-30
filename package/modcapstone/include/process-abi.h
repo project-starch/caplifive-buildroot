@@ -16,4 +16,9 @@
 #define SBI_CAPSTONE_PROCESS_COLLECT 0x28
 #define SBI_CAPSTONE_PROCESS_RESUME_SHARE 0x29
 #define SBI_CAPSTONE_PROCESS_STATS 0x2a
+/* Translated mappings (M2): GRANT(dom, region, len, prot) -> binding word or
+ * -1; RELEASE(dom, binding) -> 0 or -1. 0x2b and the ioctls 14/15 are taken
+ * by another branch. */
+#define SBI_CAPSTONE_MAP_GRANT 0x30
+#define SBI_CAPSTONE_MAP_RELEASE 0x31
 #endif

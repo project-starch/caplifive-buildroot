@@ -719,3 +719,20 @@ int capstone_step(dom_id_t domain, struct ioctl_dom_step_args *step) {
 int capstone_process_stats(struct ioctl_process_stats *stats) {
     return ioctl(dev_fd, IOCTL_PROCESS_STATS, stats);
 }
+
+int capstone_map_grant(dom_id_t domain, region_id_t region, unsigned long len,
+                       unsigned long prot, unsigned long *binding) {
+    struct ioctl_map_grant_args args = {
+        .version = 1, .dom_id = domain, .region_id = region, .len = len, .prot = prot,
+        .binding = 0
+    };
+    if (ioctl(dev_fd, IOCTL_MAP_GRANT, &args) < 0)
+        return -1;
+    *binding = args.binding;
+    return 0;
+}
+
+int capstone_map_release(dom_id_t domain, unsigned long binding) {
+    struct ioctl_map_release_args args = {.version = 1, .dom_id = domain, .binding = binding};
+    return ioctl(dev_fd, IOCTL_MAP_RELEASE, &args) < 0 ? -1 : 0;
+}

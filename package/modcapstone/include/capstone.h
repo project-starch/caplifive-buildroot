@@ -126,4 +126,33 @@ struct ioctl_process_stats {
 #define IOCTL_PROCESS_ENABLE _IO(IOC_MAGIC, 12)
 #define IOCTL_DOM_STEP _IOWR(IOC_MAGIC, 11, struct ioctl_dom_step_args)
 
+/* Translated mappings (managed API; docs/plans/mapping-transport-m2.md in the
+ * superproject). GRANT turns a managed region into a PRIVATE mapping of the
+ * domain: the monitor splits the region's chunk into a root page, one leaf
+ * table page per 256 frames and the frames, and delivers the mapping
+ * capability into the domain's sealed context (register a2 at its next
+ * entry). Linux loses the region until RELEASE: no VMA may exist at GRANT and
+ * mmap is refused in between. The region must hold len plus the tables:
+ * (1 + ceil(len / 1 MiB) + len / 4 KiB) pages. RELEASE detaches and destroys
+ * the mapping and resets the region, which is then a fresh region again.
+ * Numbers 14 and 15 belong to another branch. */
+struct ioctl_map_grant_args {
+    unsigned long version;   /* 1 */
+    dom_id_t dom_id;
+    region_id_t region_id;
+    unsigned long len;       /* bytes to map, a page multiple, at most CAPSTONE_MAP_MAX_BYTES */
+    unsigned long prot;      /* CAPSTONE_MAP_PROT_R or CAPSTONE_MAP_PROT_RW */
+    unsigned long binding;   /* out: the mapping's binding word, RELEASE's argument */
+};
+struct ioctl_map_release_args {
+    unsigned long version;   /* 1 */
+    dom_id_t dom_id;
+    unsigned long binding;
+};
+#define CAPSTONE_MAP_PROT_R 4
+#define CAPSTONE_MAP_PROT_RW 6
+#define CAPSTONE_MAP_MAX_BYTES (256UL << 20)
+#define IOCTL_MAP_GRANT _IOWR(IOC_MAGIC, 20, struct ioctl_map_grant_args)
+#define IOCTL_MAP_RELEASE _IOW(IOC_MAGIC, 21, struct ioctl_map_release_args)
+
 #endif

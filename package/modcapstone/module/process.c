@@ -23,6 +23,16 @@ struct process_block {
 
 static struct process_block process_domains[PROCESS_DOMAINS];
 static struct process_block process_regions[PROCESS_REGIONS];
+
+/* One live translated mapping (IOCTL_MAP_GRANT): which region backs it, for
+ * which domain, under which binding word. The monitor keeps the same table. */
+#define PROCESS_MAPPINGS 32
+struct process_mapping {
+    struct process_owner *owner;
+    struct process_block *region;
+    unsigned long dom_id, binding;
+};
+static struct process_mapping process_mappings[PROCESS_MAPPINGS];
 static unsigned long process_cached_bytes;
 static unsigned long process_cache_limit = 384UL * 1024 * 1024;
 module_param_named(process_cache_bytes, process_cache_limit, ulong, 0444);
@@ -187,10 +197,93 @@ static long process_create_region(struct process_owner *owner, void __user *arg)
     return copy_to_user(arg, &a, sizeof(a)) ? -EFAULT : 0;
 }
 
+/* GRANT: the region leaves Linux for as long as the mapping lives. The monitor
+ * withdraws the CPMP association itself; here a live VMA or an earlier share
+ * refuses the grant, and the transferred flag refuses mmap until RELEASE. The
+ * table geometry is checked here too, so a short region reports EINVAL rather
+ * than the monitor's bare -1. */
+static long process_map_grant(struct process_owner *owner, void __user *arg)
+{
+    struct ioctl_map_grant_args a;
+    struct process_block *b;
+    struct process_mapping *m = NULL;
+    struct sbiret r;
+    unsigned long pages, leaves;
+    unsigned i;
+    if (copy_from_user(&a, arg, sizeof(a))) return -EFAULT;
+    if (a.version != 1) return -EINVAL;
+    if (!process_find(process_domains, PROCESS_DOMAINS, owner, a.dom_id)) return -EPERM;
+    b = process_find(process_regions, PROCESS_REGIONS, owner, a.region_id);
+    if (!b) return -EPERM;
+    if (!a.len || (a.len & (PAGE_SIZE - 1)) || a.len > CAPSTONE_MAP_MAX_BYTES) return -EINVAL;
+    if (a.prot != CAPSTONE_MAP_PROT_R && a.prot != CAPSTONE_MAP_PROT_RW) return -EINVAL;
+    pages = a.len >> PAGE_SHIFT;
+    leaves = (pages + 255) >> 8;
+    if (((1 + leaves + pages) << PAGE_SHIFT) > b->bytes) return -EINVAL;
+    if (b->poisoned || b->shared || atomic_read(&b->mappings)) return -EBUSY;
+    for (i = 0; i < PROCESS_MAPPINGS; ++i)
+        if (!process_mappings[i].owner) { m = &process_mappings[i]; break; }
+    if (!m) return -ENOSPC;
+    r = sbi_ecall(SBI_EXT_CAPSTONE, SBI_CAPSTONE_MAP_GRANT, a.dom_id, a.region_id,
+                  a.len, a.prot, 0, 0);
+    if (r.error || r.value < 0) return -ENOSPC;
+    b->shared = true;
+    b->transferred = true;
+    m->owner = owner;
+    m->region = b;
+    m->dom_id = a.dom_id;
+    m->binding = r.value;
+    a.binding = r.value;
+    return copy_to_user(arg, &a, sizeof(a)) ? -EFAULT : 0;
+}
+
+/* RELEASE: the monitor detaches, destroys and resets the region into the
+ * prepared state, so the block is an ordinary region again. A refusal
+ * poisons the block: its pages are neither Linux's nor reclaimed. */
+static long process_map_release_one(struct process_mapping *m)
+{
+    struct sbiret r = sbi_ecall(SBI_EXT_CAPSTONE, SBI_CAPSTONE_MAP_RELEASE, m->dom_id,
+                                m->binding, 0, 0, 0, 0);
+    if (r.error || r.value) {
+        m->region->poisoned = true;
+        pr_err("capstone: mapping %lu of domain %lu could not be released\n",
+               m->binding, m->dom_id);
+        return -EIO;
+    }
+    m->region->shared = false;
+    m->region->transferred = false;
+    return 0;
+}
+
+static long process_map_release(struct process_owner *owner, void __user *arg)
+{
+    struct ioctl_map_release_args a;
+    unsigned i;
+    if (copy_from_user(&a, arg, sizeof(a))) return -EFAULT;
+    if (a.version != 1) return -EINVAL;
+    for (i = 0; i < PROCESS_MAPPINGS; ++i) {
+        struct process_mapping *m = &process_mappings[i];
+        long error;
+        if (m->owner != owner || m->dom_id != a.dom_id || m->binding != a.binding) continue;
+        error = process_map_release_one(m);
+        if (!error) memset(m, 0, sizeof(*m));
+        return error;
+    }
+    return -ENOENT;
+}
+
 static void process_release(struct process_owner *owner)
 {
     unsigned group, i;
     if (!owner->managed) return;
+    /* Mappings first: a mapping outlives its domain in the monitor's table, and
+     * the region reset below would revoke the frames beneath a live mapping. */
+    for (i = 0; i < PROCESS_MAPPINGS; ++i) {
+        struct process_mapping *m = &process_mappings[i];
+        if (m->owner != owner) continue;
+        process_map_release_one(m);
+        memset(m, 0, sizeof(*m));
+    }
     /* Quiesce and revoke executable state before revoking its grants. No ioctl
      * is in flight after the last struct file reference reaches release(). */
     for (group = 0; group < 2; ++group) {
@@ -296,6 +389,10 @@ static long process_ioctl(struct process_owner *owner, unsigned number, void __u
         return process_create_domain(owner, arg);
     case IOCTL_REGION_CREATE:
         return process_create_region(owner, arg);
+    case IOCTL_MAP_GRANT:
+        return process_map_grant(owner, arg);
+    case IOCTL_MAP_RELEASE:
+        return process_map_release(owner, arg);
     case IOCTL_DOM_STEP:
         if (copy_from_user(&step, arg, sizeof(step))) return -EFAULT;
         if (!process_find(process_domains, PROCESS_DOMAINS, owner, step.dom_id))
