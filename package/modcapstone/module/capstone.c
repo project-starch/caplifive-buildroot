@@ -611,37 +611,45 @@ static void ioctl_schedule_dom(struct ioctl_dom_sched_args* __user args) {
 		m_args.dom_id, 0, 0, 0, 0, 0);
 }
 
+/* One ecall per step. The monitor returns the event kind as the SBI value and
+ * result, cause, pc and address in a2..a5 (process-abi.h). sbi_ecall() treats
+ * a2..a7 as preserved inputs, so STEP has its own ecall that declares them
+ * clobbered. */
+static long capstone_sbi_step(struct ioctl_dom_step_args *step)
+{
+    register unsigned long a0 asm("a0") = step->dom_id;
+    register unsigned long a1 asm("a1") = 0;
+    register unsigned long a2 asm("a2") = 0;
+    register unsigned long a3 asm("a3") = 0;
+    register unsigned long a4 asm("a4") = 0;
+    register unsigned long a5 asm("a5") = 0;
+    register unsigned long a6 asm("a6") = SBI_CAPSTONE_PROCESS_STEP;
+    register unsigned long a7 asm("a7") = SBI_EXT_CAPSTONE;
+    asm volatile("ecall"
+                 : "+r"(a0), "+r"(a1), "+r"(a2), "+r"(a3), "+r"(a4), "+r"(a5)
+                 : "r"(a6), "r"(a7)
+                 : "memory");
+    if (a0 || a1 > CAPSTONE_STEP_FAULT)
+        return -EIO;
+    step->event = a1;
+    step->result = a2;
+    step->cause = a3;
+    step->pc = a4;
+    step->address = a5;
+    return 0;
+}
+
 static long ioctl_step_dom(void __user *args)
 {
     struct ioctl_dom_step_args step;
-    struct sbiret r;
-    unsigned long *values[4];
-    unsigned i;
+    long error;
     if (copy_from_user(&step, args, sizeof(step)))
         return -EFAULT;
     if (step.version != 1)
         return -EINVAL;
-    r = sbi_ecall(SBI_EXT_CAPSTONE, SBI_CAPSTONE_PROCESS_CAPABILITIES, 0, 0, 0, 0, 0, 0);
-    if (r.error || r.value != CAPSTONE_PROCESS_FEATURES_V1)
-        return -EOPNOTSUPP;
-    r = sbi_ecall(SBI_EXT_CAPSTONE, SBI_CAPSTONE_PROCESS_STEP, step.dom_id, 0, 0, 0, 0, 0);
-    if (r.error || r.value < 0 || r.value > CAPSTONE_STEP_FAULT)
-        return -EIO;
-    step.event = r.value;
-    values[0] = &step.result;
-    values[1] = &step.cause;
-    values[2] = &step.pc;
-    values[3] = &step.address;
-    for (i = 0; i < 4; ++i) {
-        r = sbi_ecall(SBI_EXT_CAPSTONE, SBI_CAPSTONE_PROCESS_QUERY, step.dom_id, i, 0, 0, 0, 0);
-        if (r.error)
-            return -EIO;
-        *values[i] = (u32)r.value;
-        r = sbi_ecall(SBI_EXT_CAPSTONE, SBI_CAPSTONE_PROCESS_QUERY,
-                      step.dom_id, i + 4, 0, 0, 0, 0);
-        if (r.error) return -EIO;
-        *values[i] |= (unsigned long)(u32)r.value << 32;
-    }
+    error = capstone_sbi_step(&step);
+    if (error)
+        return error;
     return copy_to_user(args, &step, sizeof(step)) ? -EFAULT : 0;
 }
 
@@ -653,12 +661,9 @@ static long device_ioctl_locked(struct file* file,
 {
     struct process_owner *owner = file->private_data;
     if (ioctl_num == IOCTL_PROCESS_ENABLE) {
-        struct sbiret r;
         if (owner->managed) return 0;
         if (legacy_api_selected) return -EBUSY;
         if (owner->used) return -EBUSY;
-        r = sbi_ecall(SBI_EXT_CAPSTONE, SBI_CAPSTONE_PROCESS_CAPABILITIES, 0, 0, 0, 0, 0, 0);
-        if (r.error || r.value != CAPSTONE_PROCESS_FEATURES_V1) return -EOPNOTSUPP;
         process_api_selected = true;
         owner->managed = true;
         return 0;

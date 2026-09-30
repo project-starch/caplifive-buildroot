@@ -15,7 +15,7 @@ the upstream repositories are read-only to the lane; their URLs are recorded in
 `.gitmodules`, so recursive checkout remains sufficient. The source path is machine-local configuration, not a
 checked-in absolute path.
 
-The boot service loads `/capstone.ko`, selects/checks the process ABI through
+The boot service loads `/capstone.ko`, selects the process API through
 `capstone-exec --stats`, and optionally mounts the `hostshare` 9p export at
 `/mnt/host`. The ordinary Linux serial shell can then run any application ABI v1
 image. SSH provisioning and QMP lifecycle are provided by the LLVM tree's
