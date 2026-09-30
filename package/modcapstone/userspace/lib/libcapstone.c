@@ -55,6 +55,7 @@ struct ElfCode {
     void *map_base;
     size_t map_len;
     unsigned long code_start, code_len;
+    unsigned long copy_len;                    /* file-backed prefix of the image */
     unsigned long loadable_size;
     off_t size, entry_offset;
     unsigned long domreq_data, domreq_stack;   /* 0 = the image declares nothing */
@@ -208,7 +209,9 @@ static int load_elf_code(const char *file_name, struct ElfCode *res) {
         retval = 1;
         goto clean_up_mmap;
     }
-    memset(image_base, 0, image_size);
+    /* Anonymous pages are zero when first touched; only the file-backed bytes are
+     * written, and only they are handed to the module (copy_len). */
+    unsigned long copy_len = 0;
 
     for (ph_idx = 0; ph_idx < phnum; ph_idx ++) {
         if (phdrs[ph_idx].p_type != PT_LOAD) {
@@ -228,6 +231,8 @@ static int load_elf_code(const char *file_name, struct ElfCode *res) {
         memcpy(image_base + seg_offset,
                ((unsigned char *)elf_header) + phdrs[ph_idx].p_offset,
                phdrs[ph_idx].p_filesz);
+        if (seg_file_end > copy_len)
+            copy_len = seg_file_end;
     }
 
     /* Pack the GLOBALS OFFSET into entry_offset's high 32 bits.
@@ -333,6 +338,7 @@ static int load_elf_code(const char *file_name, struct ElfCode *res) {
     res->size = file_stat.st_size;
     res->code_start = (unsigned long)image_base;
     res->code_len = image_size;
+    res->copy_len = copy_len ? copy_len : image_size;
     res->entry_offset = entry_off | (globals_off << 32);
     res->domreq_data = domreq_data;
     res->domreq_stack = domreq_stack;
@@ -447,6 +453,7 @@ static int load_elf_code_ko(const char *file_name, struct ElfCode *res) {
     capstone_log("Code start = %lx\n", res->code_start);
     unsigned long init_text_len = shdrs[init_text_sh_idx].sh_size;
     res->code_len = init_text_start + init_text_len - exec_start;
+    res->copy_len = res->code_len;
     capstone_log("Code len = %lx\n", res->code_len);
     res->entry_offset = init_text_start - exec_start;
 
@@ -490,6 +497,7 @@ static dom_id_t create_dom_from_elf(const struct ElfCode *c_code,
     struct ioctl_dom_create_args args = {
         .code_begin = (void *)c_code->code_start,
         .code_len = c_code->code_len,
+        .copy_len = c_code->copy_len,
         .entry_offset = c_code->entry_offset,
         .domreq_data = c_code->domreq_data,
         .domreq_stack = c_code->domreq_stack,

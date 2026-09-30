@@ -111,7 +111,7 @@ static long process_create_domain(struct process_owner *owner, void __user *arg)
     unsigned long data, total, bytes;
     bool fresh;
     if (copy_from_user(&a, arg, sizeof(a))) return -EFAULT;
-    if (a.s_size || a.s_load_len || !a.code_len ||
+    if (a.s_size || a.s_load_len || !a.code_len || !a.copy_len || a.copy_len > a.code_len ||
         a.code_len > PROCESS_MAX_BYTES || a.domreq_data > PROCESS_MAX_BYTES ||
         a.domreq_stack > a.domreq_data ||
         (a.entry_offset & 0xffffffffUL) >= a.code_len ||
@@ -124,13 +124,18 @@ static long process_create_domain(struct process_owner *owner, void __user *arg)
     bytes = roundup_pow_of_two(PAGE_ALIGN(total));
     b = process_acquire(process_domains, PROCESS_DOMAINS, owner, bytes, &fresh);
     if (IS_ERR(b)) return PTR_ERR(b);
-    if (copy_from_user(page_address(b->pages), a.code_begin, a.code_len)) {
+    if (copy_from_user(page_address(b->pages), a.code_begin, a.copy_len)) {
         process_rollback(b, fresh);
         return -EFAULT;
     }
-    /* Fresh pages and unused tails must contain no kernel data. Cached blocks
-     * were scrubbed by revocation, but zero the image tail on every creation. */
-    memset(page_address(b->pages) + a.code_len, 0, b->bytes - a.code_len);
+    /* Fresh pages hold whatever the allocator left; everything past the copied
+     * prefix (.bss and the unused tail) must be zero. A cached block was filled
+     * with zero capabilities by the monitor's reclaim when its last owner
+     * released it (managed_reclaim), granule by granule, and the region path
+     * already relies on that; zeroing it again here cost a launch a second per
+     * 100 MB in the guest. */
+    if (fresh)
+        memset(page_address(b->pages) + a.copy_len, 0, b->bytes - a.copy_len);
     r = sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_DOM_CREATE,
                   page_to_phys(b->pages), a.code_len, b->bytes,
                   a.entry_offset, 0, 1);
