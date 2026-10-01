@@ -185,7 +185,8 @@ endif
 # its output: parse the wrapper in place first when editing the monitor, or the tree cannot relink
 # until the source parses again.
 $(CAPSTONE_S_OUTPUT):%.c.S:%.c $(CAPSTONE_S_INPUT) $(CAPSTONE_DEFS_STAMP)
-	cd "$(CAPSTONE_CC_PATH)" && if /bin/sh -c 'cargo run -- --abi capstone $< -- -I"$(CAPSTONE_S_INCLUDE)" -D__riscv_xlen=64 $(CAPSTONE_EXTRA_DEFS) > "$@.tmp"'; then \
+	cd "$(CAPSTONE_CC_PATH)" && if /bin/sh -c 'cargo run -- --abi capstone $< -- -I"$(CAPSTONE_S_INCLUDE)" -D__riscv_xlen=64 $(CAPSTONE_EXTRA_DEFS) > "$@.tmp"' && \
+		python3 "$(CURDIR)/scripts/check-monitor-asm.py" "$@.tmp"; then \
 		mv -f "$@.tmp" "$@"; \
 	else \
 		rm -f "$@.tmp" "$@"; \

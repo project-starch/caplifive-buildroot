@@ -115,6 +115,25 @@ struct ioctl_dom_step_args {
 #define CAPSTONE_STEP_RETURNED 0
 #define CAPSTONE_STEP_PREEMPTED 1
 #define CAPSTONE_STEP_FAULT 2
+#define CAPSTONE_STEP_DEAD 3   /* the context's seal was revoked; it can never run again */
+#define CAPSTONE_STEP_STALE 4  /* the id names no current context (old generation) */
+#define CAPSTONE_STEP_REFUSED 5 /* the seal would not run in C-mode; it was not entered */
+
+/* Context ids are (generation << 32) | slot; a generation is never reissued.
+ * ADOPT registers the seal a context offered through its invocation
+ * descriptor, under the ticket it wrote there, as a new context of the same
+ * owner; FORGET removes a context's registration, not its memory
+ * (docs/plans/delegation-threads.md in llvm-capstone). */
+struct ioctl_context_adopt_args {
+    unsigned long version;
+    dom_id_t parent;
+    unsigned long ticket;
+    dom_id_t child;
+};
+struct ioctl_context_forget_args {
+    unsigned long version;
+    dom_id_t context;
+};
 struct ioctl_process_stats {
     unsigned long version;
     unsigned long live_domains, live_regions, live_bytes;
@@ -125,5 +144,7 @@ struct ioctl_process_stats {
 #define IOCTL_PROCESS_STATS _IOR(IOC_MAGIC, 13, struct ioctl_process_stats)
 #define IOCTL_PROCESS_ENABLE _IO(IOC_MAGIC, 12)
 #define IOCTL_DOM_STEP _IOWR(IOC_MAGIC, 11, struct ioctl_dom_step_args)
+#define IOCTL_CONTEXT_ADOPT _IOWR(IOC_MAGIC, 14, struct ioctl_context_adopt_args)
+#define IOCTL_CONTEXT_FORGET _IOW(IOC_MAGIC, 15, struct ioctl_context_forget_args)
 
 #endif

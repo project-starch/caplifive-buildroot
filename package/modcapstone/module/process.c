@@ -16,12 +16,24 @@ struct process_block {
     dma_addr_t dma;
     size_t bytes;
     unsigned long id;
+    unsigned long gen;      /* a domain block: the generation of its first context */
     bool poisoned;
     bool shared, transferred;
     atomic_t mappings;
 };
 
+/* Contexts an owner's application minted and the monitor adopted. They have no
+ * memory of their own: it stays with the application's domain block. One
+ * record per monitor slot at most (process_purge_slot), and a live application
+ * holds a slot of its own, so an adoption always finds a free record. */
+#define PROCESS_CONTEXTS CAPSTONE_PROCESS_SLOTS
+struct process_context {
+    struct process_owner *owner;
+    unsigned long slot, gen;
+};
+
 static struct process_block process_domains[PROCESS_DOMAINS];
+static struct process_context process_contexts[PROCESS_CONTEXTS];
 static struct process_block process_regions[PROCESS_REGIONS];
 static unsigned long process_cached_bytes;
 static unsigned long process_cache_limit = 384UL * 1024 * 1024;
@@ -37,6 +49,45 @@ static struct process_block *process_find(struct process_block *blocks, unsigned
         if (blocks[i].pages && blocks[i].owner == owner && blocks[i].id == id)
             return &blocks[i];
     return NULL;
+}
+
+static unsigned long context_slot(dom_id_t id) { return id & CAPSTONE_PROCESS_SLOT_MASK; }
+static unsigned long context_gen(dom_id_t id) { return id >> 32; }
+
+/* The owner's domain block whose first context is id, generation included. */
+static struct process_block *process_find_domain(struct process_owner *owner, dom_id_t id)
+{
+    struct process_block *b = process_find(process_domains, PROCESS_DOMAINS, owner,
+                                           context_slot(id));
+    return b && b->gen == context_gen(id) ? b : NULL;
+}
+
+static struct process_context *process_find_context(struct process_owner *owner, dom_id_t id)
+{
+    unsigned i;
+    for (i = 0; i < PROCESS_CONTEXTS; ++i) {
+        struct process_context *c = &process_contexts[i];
+        if (c->owner == owner && c->slot == context_slot(id) && c->gen == context_gen(id))
+            return c;
+    }
+    return NULL;
+}
+
+static bool process_owns_context(struct process_owner *owner, dom_id_t id)
+{
+    return process_find_domain(owner, id) || process_find_context(owner, id);
+}
+
+/* The monitor has given slot `slot` a new generation. Every record of an older
+ * one is dead: the monitor retired it on a shortage (Linux never forgot it) or
+ * its FORGET is still to come, and either way it would now be refused as
+ * stale. Dropping it here bounds the table by the monitor's slot count. */
+static void process_purge_slot(unsigned long slot)
+{
+    unsigned i;
+    for (i = 0; i < PROCESS_CONTEXTS; ++i)
+        if (process_contexts[i].owner && process_contexts[i].slot == slot)
+            process_contexts[i].owner = NULL;
 }
 
 static struct process_block *process_acquire(struct process_block *blocks,
@@ -143,9 +194,11 @@ static long process_create_domain(struct process_owner *owner, void __user *arg)
         process_rollback(b, fresh);
         return -ENOSPC;
     }
-    b->id = r.value;
+    b->id = context_slot(r.value);
+    b->gen = context_gen(r.value);
+    process_purge_slot(b->id);
     process_pin();
-    a.dom_id = b->id;
+    a.dom_id = r.value;
     return copy_to_user(arg, &a, sizeof(a)) ? -EFAULT : 0;
 }
 
@@ -201,7 +254,7 @@ static void process_release(struct process_owner *owner)
             struct sbiret r;
             if (b->owner != owner) continue;
             r = sbi_ecall(SBI_EXT_CAPSTONE, group ? SBI_CAPSTONE_PROCESS_REGION_RESET : SBI_CAPSTONE_PROCESS_DESTROY,
-                          b->id, 0, 0, 0, 0, 0);
+                          b->id, group ? 0 : b->gen, 0, 0, 0, 0);
             if (r.error || r.value) {
                 b->poisoned = true;
                 pr_err("capstone: process extent %lu could not be reclaimed\n", b->id);
@@ -209,7 +262,59 @@ static void process_release(struct process_owner *owner)
             b->owner = NULL;
         }
     }
+    /* DESTROY removed every context of the owner's applications from the
+       monitor; only the records remain. */
+    for (i = 0; i < PROCESS_CONTEXTS; ++i)
+        if (process_contexts[i].owner == owner)
+            process_contexts[i].owner = NULL;
     sbi_ecall(SBI_EXT_CAPSTONE, SBI_CAPSTONE_PROCESS_COLLECT, 0, 0, 0, 0, 0, 0);
+}
+
+static long process_adopt(struct process_owner *owner, void __user *arg)
+{
+    struct ioctl_context_adopt_args a;
+    struct process_context *slot = NULL;
+    struct sbiret r;
+    unsigned i;
+    if (copy_from_user(&a, arg, sizeof(a))) return -EFAULT;
+    if (a.version != 1) return -EINVAL;
+    if (!process_owns_context(owner, a.parent)) return -EPERM;
+    for (i = 0; i < PROCESS_CONTEXTS && !slot; ++i)
+        if (!process_contexts[i].owner)
+            slot = &process_contexts[i];
+    /* Refuse before the monitor consumes the offer: it stays for a retry. */
+    if (!slot) return -ENOSPC;
+    r = sbi_ecall(SBI_EXT_CAPSTONE, SBI_CAPSTONE_PROCESS_ADOPT, context_slot(a.parent),
+                  context_gen(a.parent), a.ticket, 0, 0, 0);
+    if (r.error) return -EIO;
+    if (r.value == CAPSTONE_PROCESS_STALE) return -ESTALE;
+    if (r.value == CAPSTONE_PROCESS_EMPTY) return -ENOENT;
+    if (r.value == CAPSTONE_PROCESS_FULL) return -ENOSPC;
+    if (r.value < 0) return -EIO;
+    process_purge_slot(context_slot(r.value));
+    slot->owner = owner;
+    slot->slot = context_slot(r.value);
+    slot->gen = context_gen(r.value);
+    a.child = r.value;
+    return copy_to_user(arg, &a, sizeof(a)) ? -EFAULT : 0;
+}
+
+static long process_forget(struct process_owner *owner, void __user *arg)
+{
+    struct ioctl_context_forget_args a;
+    struct process_context *c;
+    struct sbiret r;
+    if (copy_from_user(&a, arg, sizeof(a))) return -EFAULT;
+    if (a.version != 1) return -EINVAL;
+    /* Only a minted context: an application's first context ends with its
+       domain block. An unknown or old id is refused without reaching the
+       monitor, so a late FORGET never acts on a replacement. */
+    c = process_find_context(owner, a.context);
+    if (!c) return -ESTALE;
+    r = sbi_ecall(SBI_EXT_CAPSTONE, SBI_CAPSTONE_PROCESS_FORGET, c->slot, c->gen, 0, 0, 0, 0);
+    c->owner = NULL;
+    if (r.error || r.value) return -ESTALE;
+    return 0;
 }
 
 static void process_vma_open(struct vm_area_struct *vma)
@@ -298,12 +403,17 @@ static long process_ioctl(struct process_owner *owner, unsigned number, void __u
         return process_create_region(owner, arg);
     case IOCTL_DOM_STEP:
         if (copy_from_user(&step, arg, sizeof(step))) return -EFAULT;
-        if (!process_find(process_domains, PROCESS_DOMAINS, owner, step.dom_id))
+        if (!process_owns_context(owner, step.dom_id))
             return -EPERM;
         return ioctl_step_dom(arg);
+    case IOCTL_CONTEXT_ADOPT:
+        return process_adopt(owner, arg);
+    case IOCTL_CONTEXT_FORGET:
+        return process_forget(owner, arg);
     case IOCTL_REGION_SHARE_ANNOTATED:
         if (copy_from_user(&share, arg, sizeof(share))) return -EFAULT;
-        if (!process_find(process_domains, PROCESS_DOMAINS, owner, share.dom_id) ||
+        /* Regions go to an application's first context only. */
+        if (!process_find_domain(owner, share.dom_id) ||
             !process_find(process_regions, PROCESS_REGIONS, owner, share.region_id))
             return -EPERM;
         if (share.annotation_perm > 4 ||
@@ -316,12 +426,13 @@ static long process_ioctl(struct process_owner *owner, unsigned number, void __u
         b->shared = true;
         b->transferred = share.annotation_rev == 3;
         r = sbi_ecall(SBI_EXT_CAPSTONE, SBI_EXT_CAPSTONE_REGION_SHARE_ANNOTATED,
-                      share.dom_id, share.region_id, share.annotation_perm,
+                      context_slot(share.dom_id), share.region_id, share.annotation_perm,
                       share.annotation_rev, 0, 0);
         while (!r.error && r.value == CAPSTONE_STEP_PREEMPTED) {
             if (signal_pending(current)) return -EINTR;
             cond_resched();
-            r = sbi_ecall(SBI_EXT_CAPSTONE, SBI_CAPSTONE_PROCESS_RESUME_SHARE, share.dom_id, 0, 0, 0, 0, 0);
+            r = sbi_ecall(SBI_EXT_CAPSTONE, SBI_CAPSTONE_PROCESS_RESUME_SHARE,
+                          context_slot(share.dom_id), 0, 0, 0, 0, 0);
         }
         if (r.value == CAPSTONE_STEP_FAULT) return -EFAULT;
         if (r.error || r.value) return -EIO;

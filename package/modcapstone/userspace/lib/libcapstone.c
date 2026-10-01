@@ -716,6 +716,24 @@ int capstone_step(dom_id_t domain, struct ioctl_dom_step_args *step) {
     return ioctl(dev_fd, IOCTL_DOM_STEP, step);
 }
 
+/* Register the seal the context `parent` offered under `ticket` as a new
+ * context of the same owner; *child receives its id. -1 with errno: ESTALE
+ * (old id or ticket), ENOENT (no offer), ENOSPC (no slot; the offer stays). */
+int capstone_adopt(dom_id_t parent, unsigned long ticket, dom_id_t *child) {
+    struct ioctl_context_adopt_args a = {.version = 1, .parent = parent, .ticket = ticket};
+    if (ioctl(dev_fd, IOCTL_CONTEXT_ADOPT, &a))
+        return -1;
+    *child = a.child;
+    return 0;
+}
+
+/* Remove a minted context's registration. Its memory stays with the
+ * application. -1 with errno ESTALE for an old or unknown id. */
+int capstone_forget(dom_id_t context) {
+    struct ioctl_context_forget_args a = {.version = 1, .context = context};
+    return ioctl(dev_fd, IOCTL_CONTEXT_FORGET, &a);
+}
+
 int capstone_process_stats(struct ioctl_process_stats *stats) {
     return ioctl(dev_fd, IOCTL_PROCESS_STATS, stats);
 }
