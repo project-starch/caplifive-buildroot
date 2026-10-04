@@ -6,6 +6,8 @@
  * reports ENOSPC instead of consuming the VM's CMA area indefinitely. Accounting
  * distinguishes live ownership from cached storage. A cache pins the module.
  */
+#include <linux/version.h>
+
 #define PROCESS_DOMAINS 32
 #define PROCESS_REGIONS MAX_REGION_N
 #define PROCESS_MAX_BYTES (512UL * 1024 * 1024)
@@ -345,7 +347,12 @@ static int process_mmap(struct process_owner *owner, struct vm_area_struct *vma)
         if (b->owner != owner || !b->pages || b->transferred) continue;
         if (vma->vm_pgoff != regions[b->id].mmap_offset >> PAGE_SHIFT ||
             !bytes || bytes > b->bytes) continue;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 3, 0)
+        /* 6.3 made vm_flags read-only (vm_flags_set); the board's kernel is 6.4.14, the QEMU guest's 6.1 */
+        vm_flags_set(vma, VM_DONTEXPAND | VM_DONTDUMP);
+#else
         vma->vm_flags |= VM_DONTEXPAND | VM_DONTDUMP;
+#endif
         result = remap_pfn_range(vma, vma->vm_start, page_to_pfn(b->pages),
                                  bytes, vma->vm_page_prot);
         if (!result) {
