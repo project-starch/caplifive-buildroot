@@ -40,7 +40,10 @@
    through the same out-of-bounds index, so no ioctl ever saw it). Overridable with -DMAX_REGION_N
    only for the bound's positive control (built at 64, the module must REFUSE ids >= 64 and warn). */
 #ifndef MAX_REGION_N
-#define MAX_REGION_N 96
+/* 127 since R-55 (regions, 2026-10-15): the FPGA monitor's CAPSTONE_MAX_REGION_N, raised from 96 because exact
+   remainders under a full-scheme bounds encoder take more slots (R-43 a2 needs 111). QEMU's monitor stays at 96,
+   which this bounds. */
+#define MAX_REGION_N 127
 #endif
 
 struct RegionInfo {
