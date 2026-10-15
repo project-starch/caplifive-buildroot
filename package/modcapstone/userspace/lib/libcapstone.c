@@ -17,13 +17,16 @@
 #define EM_CAPSTONE 259
 #endif
 
-/* Must match the MODULE's table, which is 96 (module/capstone.c:39) and was raised there for
+/* Must match the MODULE's table, which is 127 since R-55 (regions) (module/capstone.c) and was raised there for
    exactly the overrun this used to have: the probe loop below indexes region_mmap_offsets[] and
    region_mmappable[] by region id with no bound, so any id at or above this number wrote past both
    arrays. 64 against the module's 96 left a 32-slot window in which the module answers the query
    happily and the library corrupts itself with the answer. The loop is bounded as well, because
    matching a constant is not a guard. */
-#define MAX_REGION_N 96
+#ifndef MAX_REGION_N
+/* 127 since R-55 (regions, 2026-10-15), with the module and the FPGA monitor. */
+#define MAX_REGION_N 127
+#endif
 #define MAP_SIZE_LIMIT 0x10000000
 #define DEBUG_COUNTER_SWITCH_U 0
 /* Guarded, matching the caplifive-system copy. `.insn r 0x5b, 0x1, 0x45` is QEMU's
